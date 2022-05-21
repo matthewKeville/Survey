@@ -1,207 +1,301 @@
 #include<ncurses.h>
 #include<stdlib.h>
-#define MAX_QCHARS 50
-//--------------------------------------------------------
-// FUNCTION PROTOTYPES
-//--------------------------------------------------------
-void printing();
-void moving_and_sleeping();
-void colouring();
+#include<string.h>
 
-//--------------------------------------------------------
-// FUNCTION main
-//--------------------------------------------------------
+#define MAX_QCHARS 50
+#define MAX_ACHARS 50
+#define QSPACE     4
+
+void printDebug(int*,int*,char*);
+void moveCursor(int,int*,int*);
+void editField(int*,int*,char[]);
+
 int main(void)
 {
-    initscr(); // this starts ncurses
+    initscr();  // this starts ncurses
     wresize(stdscr,26,120); //guess of supported screen size (based on vim lns)
     noecho();  // disable echo
     raw();     // disable line buffering
     keypad(stdscr,TRUE); //Get access to F1,F2.... for our window (stdscr)
+    
+    ////////////////////////
+    //   Compatibility Checks
+    ////////////////////////
 
+    //check cursor state supports
+    if ( curs_set(0) == ERR || curs_set(1) == ERR || curs_set(2) == ERR ) {
+      printf("required cursor states are not supported on your terminal");
+      exit(3);
+    } else {
+      curs_set(0);  //hide the cursor
+    }
+
+    //color support
     if (!has_colors()) {
       addstr("your terminal does not support colors, aborting");
       refresh();
     }
-
     if (start_color() != OK) {
       addstr("Unable to start colors, aborting");
       refresh();
       exit(1);
     }
 
-    // one of the ncurses printing methods (outputs to a buffer)
-    addstr("Daily Survey");
-    refresh();
+    ///////////////////////
+    //    Read in data 
+    ///////////////////////
 
     // dummy questions set
-    int  nq = 4;
-    char questions[4][MAX_QCHARS] = {
-      {" What did you have for breakfast?"},
+    int  nq = 4; //num questions
+    char questions[4][MAX_QCHARS+1] = {
+      {" Did you meditate this morning?  "},
       {" Did you bring lunch today?      "},
       {" How did you sleep?              "},
-      {" What is your mood?              "}
+      {" How are you feeling?              "}
     };
+    char answers[4][MAX_ACHARS+1] = { "" };
 
-    //Print out all questions
+    //setup color combinations
     init_pair(1,COLOR_MAGENTA,COLOR_BLACK); //questions
     init_pair(2,COLOR_BLUE,COLOR_BLUE);     //answer field (blocked)
-    init_pair(3,COLOR_WHITE,COLOR_GREEN); //submit text
+    init_pair(3,COLOR_WHITE,COLOR_GREEN);   //submit text
+
+    /////////////////////////
+    //    Print Layout
+    /////////////////////////
+
+    addstr("Daily Survey");
+
+    //Print out all questions
     attron(COLOR_PAIR(1));
-    
+
+    //source x and y  | location of where the first question is printed    
     int sy,sx;
     getyx(stdscr,sy,sx);  
+
     //Print question and response fields
     for ( int i = 0; i < nq; i++) {
-      printw("\n\n    [%d]  %s",i,questions[i]);
+      for ( int j = 0; j < QSPACE; j++) {
+        printw("\n");
+      }
+      printw("    [%d]  %s",i,questions[i]);
+      //print out answer field block
       int y,x;
       getyx(stdscr,y,x);
       move(y,MAX_QCHARS);
       attron(COLOR_PAIR(2));
-      printw("xxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyy");
+      for ( int k = 0; k < MAX_QCHARS; k++) {
+        addch(' ');
+      }
       attron(COLOR_PAIR(1));
     }
+
     //Print Submit Button
-    printw("\n\n");
+    for ( int i = 0; i < QSPACE; i++) {
+    printw("\n");
+    }
     attron(COLOR_PAIR(3));
-    printw(" Submit ");
+    printw(" Submit \n");
     attron(COLOR_PAIR(1));
     refresh();
-  
-    int selectIndex = 0;
-    move(2+sy+(2*selectIndex),0);
-    printw(">");
-    refresh();
-    //draw a cursor at the selected index entry 
 
+    //debug buffer location
+    int dby,dbx;
+    getyx(stdscr,dby,dbx); 
+    dbx = 0;
+
+    //print out form default locationin indicator  
+    int selectIndex = 0;
+    moveCursor(0,&sy,&selectIndex);
 
     //read in keypresses until 'q' is pressed
-    /*
+    //to be replaced with enter on ENTER segment
     int uch;
     int ok = 1;
-    int isBold = 0;
-    while (ok) {
+    USERREAD:while (ok) { 
       uch = getch();
-      addstr("\nyou entered ");
-      isBold = (isBold + 1) % 2;
-      if (isBold) {
-      attron(A_BOLD);
-      }
-      //addch(uch);
-      printw("%c",uch);
-      attroff(A_BOLD);
-      if (uch == KEY_F(1)) {
-        printw("F1 , you sneaky bastard");
+      switch(uch) {
+        case KEY_UP :
+          printDebug(&dby,&dbx,"Up Key Pressed");
+
+          if ( selectIndex != 0 ) {
+          printDebug(&dby,&dbx,"Up Key p bdp");
+          moveCursor(-1,&sy,&selectIndex); 
+          }
+          break;
+        case KEY_DOWN :  
+          printDebug(&dby,&dbx,"Down Key Pressed");
+
+          if ( selectIndex != nq-1 ) {
+          moveCursor(1,&sy,&selectIndex); 
+          }
+          break;
+        case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter
+          printDebug(&dby,&dbx,"Enter Key Pressed");
+
+          editField(&sy,&selectIndex,answers[selectIndex]);
+          break;
+        case KEY_BACKSPACE : ;
+          int y,x; //if i don't add the above semi colon i get the error
+          //a label can only be part of a statement and a declaration is not a statement..
+          getyx(stdscr,y,x);
+          move(y,MAX_QCHARS);
+          attron(COLOR_PAIR(2));
+          for ( int k = 0; k < MAX_QCHARS; k++) {
+            addch(' ');
+          }
+          //printw("xxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyy");
+          attron(COLOR_PAIR(1));
+          //reset the associated string buffer
+          answers[selectIndex][0] = '\0';
+          default :
+          break;
       }
       refresh();
       ok = ( uch != 113 ); //if user enters q exit
     }
-    */
 
-    getch();
-
-
-
+    int complete = 1;
+    for ( int i = 0; i < nq; i++ ) {
+      complete &= ( answers[i][0] != '\0');
+    }
+    if (!complete) {
+      printDebug(&dby,&dbx,"Some fields are incomplete");
+      ok = 1;
+      goto USERREAD; //lazy
+    }
+    
     //end ncurses before the program exits
+    clear();
+    refresh();
+    //print out answer buffers
     endwin();
+
+    //unsure why this loop prints doubled ...
+    for ( int i = 0; i < nq; i++ ) {
+      printf("%d  %s\n",i,answers[i]);
+    }
+    fflush(stdout);
+   
+    //save answers to file 
+    char *home = getenv("HOME");
+    if (home == NULL) {
+      printf("unable to find user home");
+      exit(4);
+    }
+
+    char *fileName = "/save.xml";
+    int pathLength = strlen(home) + strlen(fileName)-1;
+    char path[pathLength];
+
+    strncpy(path,home,strlen(home));
+    strncat(path,fileName,strlen(fileName));
+
+    printf("opening %s for writing\n",path);
+    FILE *fprt;
+    fprt = fopen(path,"w");
+    for ( int i = 0; i < nq; i++) {
+      fprintf(fprt,"%s\n",answers[i]);
+    }
+    fclose(fprt); 
 
     return EXIT_SUCCESS;
 }
 
-//--------------------------------------------------------
-// FUNCTION printing
-//--------------------------------------------------------
-void printing()
-{
+/* 
+  Print a message out in the debug area 
+*/
+void printDebug(int* dby,int* dbx,char* msg) {
+  int by,bx;
+  getyx(stdscr,by,bx);  
 
-    // addstr - prints specified string           | stdio puts
-    // addch  - prints a single character         | stdio putchar
-    // printw - the ncurses equivalent of printf  | stdio printf
-    //* except you need to call refersh to copy from the buffer to the screen 
+  move(*dby,*dbx);
+  clrtoeol(); //clear line
+  printw("%s and db at (%d,%d)",msg,*dbx,*dby);
 
-    addstr("This was printed using addstr\n\n");
-    refresh();
-
-    addstr("The following letter was printed using addch:- ");
-    addch('a');
-    refresh();
-
-    printw("\n\nThese numbers were printed using printw\n%d\n%f\n", 123, 456.789);
-    refresh();
+  move(by,bx);
+  refresh();
 }
 
-//--------------------------------------------------------
-// FUNCTION moving_and_sleeping
-//--------------------------------------------------------
-void moving_and_sleeping()
-{
-    int row = 5;
-    int col = 0;
-
-    curs_set(0);
-
-    for(char c = 65; c <= 90; c++)
-    {
-        move(row++, col++);
-        addch(c);
-        refresh();
-        napms(100);
-    }
-
-    row = 5;
-    col = 3;
-
-    for(char c = 97; c <= 122; c++)
-    {
-        mvaddch(row++, col++, c);
-        refresh();
-        napms(100);
-    }
-
-    curs_set(1);
-
-    addch('\n');
+/* delete the previous cursor character, then
+   move to the new location and write the new 
+   location character
+   @x     - relative new position
+   @sy    - pointer to source y
+   @selectIndex - pointer to current question index
+*/
+void moveCursor(int dcy,int *sy,int *selectIndex) {
+  //delete the last cursor 
+  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
+  addch(' ');
+  //update selected index
+  *selectIndex = (*selectIndex) + dcy;
+  //draw new cursor
+  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
+  printw(">");
+  refresh();
 }
 
-//--------------------------------------------------------
-// FUNCTION colouring
-//--------------------------------------------------------
-void colouring()
-{
-    if(has_colors())  //does this terminal support colors?
-    {
-        if(start_color() == OK) 
-        {
-            //all color constants { BLACK , RED , GREEN , YELLOW , BLUE , MAGENTA , CYAN , WHITE }
-            init_pair(1, COLOR_YELLOW, COLOR_RED); //establish fg / bg color pairs
-            init_pair(2, COLOR_GREEN, COLOR_GREEN);
-            init_pair(3, COLOR_MAGENTA, COLOR_CYAN);
+//need to ban all control/special characters , but
+//have a special process for backspace and clear
+//WARNING! not checking for buffer overflow
+void editField(int *sy,int *selectIndex,char answer[]) {
+  //move cursor to start of field 
+  //enable cursor
+  int prevCursorState = curs_set(2);
+  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),MAX_QCHARS);
 
-            attrset(COLOR_PAIR(1));  //set printing attributes
-            addstr("Yellow and red\n\n");
-            refresh();
-            attroff(COLOR_PAIR(1));
-
-            attrset(COLOR_PAIR(2) | A_BOLD); //set printing attributes ( OR's with bold makes foregroudn brighter to differentiate green on green
-            addstr("Green and green A_BOLD\n\n");
-            refresh();
-            attroff(COLOR_PAIR(2));
-            attroff(A_BOLD);
-
-            attrset(COLOR_PAIR(3));
-            addstr("Magenta and cyan\n");
-            refresh();
-            attroff(COLOR_PAIR(3));
-        }
-        else
-        {
-            addstr("Cannot start colours\n");
-            refresh();
+  //get number of chars in the buffer
+  int charCount = 0;
+  int end = 0;
+  int charPos = 0;
+  int ok = 1;
+  while ( charPos < MAX_QCHARS && !end) {
+    if (answer[charPos] == '\0') {
+      end = 1;
+    } else {
+      charPos++;  
+    }
+  }
+  //charPos--;
+  while (ok) {
+    int ic = getch();
+    switch(ic) { 
+      case 10 :
+        ok = 0;
+        break;
+      /* this does not behave as anticipated, i see
+         that the block spaces disappear on backspace
+         but I explicitly add one back , unsure of what is
+         going on here
+      */
+      case KEY_BACKSPACE :;
+        attron(COLOR_PAIR(2));
+        addch('X');
+        attron(COLOR_PAIR(1));
+        int y,x; 
+        getyx(stdscr,y,x);
+        move(y,x-2);
+        delch();
+        move(y,x-2);
+        answer[charPos] = '\0';
+        charPos--;
+        break;
+      default :
+        if (charPos < MAX_ACHARS-1) {
+          //do not write control characters
+          if (! ( ic <= 31 || ic == 127 ) )
+            addch(ic);
+            answer[charPos] = ic;
+            answer[charPos+1] = '\0';
+            charPos++; 
         }
     }
-    else
-    {
-        addstr("Not colour capable\n");
-        refresh();
-    }
-} 
+    refresh();
+    
+  }
+  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
+  curs_set(prevCursorState);
+}
+
+
