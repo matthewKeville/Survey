@@ -185,6 +185,8 @@ int main(void)
     }
 
     char *fileName = "/save.xml";
+    //why the -1 
+    //if anything it should be +1 for the null byte
     int pathLength = strlen(home) + strlen(fileName)-1;
     char path[pathLength];
 
@@ -192,7 +194,7 @@ int main(void)
     strncat(path,fileName,strlen(fileName));
 
     printf("opening %s for writing\n",path);
-    FILE *fprt;
+    FILE *fprt; //should be checking if this is a valid pointer
     fprt = fopen(path,"w");
     for ( int i = 0; i < nq; i++) {
       fprintf(fprt,"%s\n",answers[i]);
