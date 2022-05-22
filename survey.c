@@ -6,7 +6,7 @@
 #define MAX_ACHARS 50
 #define QSPACE     4
 
-void printDebug(int*,int*,char*);
+void printDebug(int*,int*,char*,int*);
 void moveCursor(int,int*,int*);
 void editField(int*,int*,char[]);
 
@@ -47,6 +47,7 @@ int main(void)
 
     // dummy questions set
     int  nq = 4; //num questions
+    int  eq = nq+1; //total item entries (questions and enter)
     char questions[4][MAX_QCHARS+1] = {
       {" Did you meditate this morning?  "},
       {" Did you bring lunch today?      "},
@@ -116,35 +117,44 @@ int main(void)
       uch = getch();
       switch(uch) {
         case KEY_UP :
-          printDebug(&dby,&dbx,"Up Key Pressed");
+          printDebug(&dby,&dbx,"Up Key Pressed",&selectIndex);
 
           if ( selectIndex != 0 ) {
-          printDebug(&dby,&dbx,"Up Key p bdp");
+          printDebug(&dby,&dbx,"Up Key p bdp",&selectIndex);
           moveCursor(-1,&sy,&selectIndex); 
           }
           break;
         case KEY_DOWN :  
-          printDebug(&dby,&dbx,"Down Key Pressed");
+          printDebug(&dby,&dbx,"Down Key Pressed",&selectIndex);
 
-          if ( selectIndex != nq-1 ) {
+          if ( selectIndex != eq-1 ) {
           moveCursor(1,&sy,&selectIndex); 
           }
           break;
+        //case KEY_STAB :  
+        case '\t' : //unsure if ncurses has a built in tab constant
+          printDebug(&dby,&dbx,"Tab Key Pressed",&selectIndex);
+          int offSet = (selectIndex == eq-1) ? -eq + 1 : 1;
+          moveCursor(offSet,&sy,&selectIndex); 
+          break;
         case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter
-          printDebug(&dby,&dbx,"Enter Key Pressed");
-
-          editField(&sy,&selectIndex,answers[selectIndex]);
+          if (selectIndex == eq-1) {
+            printDebug(&dby,&dbx,"Enter Key Pressed (exit attempt)",&selectIndex);
+            ok = 0; 
+          } else {
+            printDebug(&dby,&dbx,"Enter Key Pressed (edit field)",&selectIndex);
+            editField(&sy,&selectIndex,answers[selectIndex]);
+          }
           break;
         case KEY_BACKSPACE : ;
           int y,x; //if i don't add the above semi colon i get the error
-          //a label can only be part of a statement and a declaration is not a statement..
+                   //a label can only be part of a statement and a declaration is not a statement..
           getyx(stdscr,y,x);
           move(y,MAX_QCHARS);
           attron(COLOR_PAIR(2));
           for ( int k = 0; k < MAX_QCHARS; k++) {
             addch(' ');
           }
-          //printw("xxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyy");
           attron(COLOR_PAIR(1));
           //reset the associated string buffer
           answers[selectIndex][0] = '\0';
@@ -152,15 +162,15 @@ int main(void)
           break;
       }
       refresh();
-      ok = ( uch != 113 ); //if user enters q exit
     }
+
 
     int complete = 1;
     for ( int i = 0; i < nq; i++ ) {
       complete &= ( answers[i][0] != '\0');
     }
     if (!complete) {
-      printDebug(&dby,&dbx,"Some fields are incomplete");
+      printDebug(&dby,&dbx,"Some fields are incomplete",&selectIndex);
       ok = 1;
       goto USERREAD; //lazy
     }
@@ -205,15 +215,11 @@ int main(void)
 /* 
   Print a message out in the debug area 
 */
-void printDebug(int* dby,int* dbx,char* msg) {
-  int by,bx;
-  getyx(stdscr,by,bx);  
+void printDebug(int* dby,int* dbx,char* msg,int* si) {
 
   move(*dby,*dbx);
   clrtoeol(); //clear line
-  printw("%s and db at (%d,%d)",msg,*dbx,*dby);
-
-  move(by,bx);
+  printw("%s  @select %d",msg,*si);
   refresh();
 }
 
