@@ -7,22 +7,30 @@
 #define MAX_QCHARS 50 //max chars in question buffer
 #define MAX_ACHARS 50 //max chars in answer buffer
 #define MAX_QS     30 //max questions
-#define QSPACE    3// 6  //gap between questions
-#define BORDER     8  //vertical units of header and footer
+#define QSPACE    8// 6  //gap between questions
+#define BORDER    2  //vertical units of header and footer
 
 #define MAX_FILE_PATH 200
-//#define WIN_V 60
-//#define WIN_H 120
+
+struct survey_pad {
+  WINDOW *pad;
+  int padr_off; //where the pad should start in the window
+  int padc_off; // ...
+  int pad_view_height; //viewport height
+  int pad_view_width;  //viewport width
+  int vqs; //number of visible questions
+  int nq;
+};
+
 
 void printDebug(int*,int*,char*,int*);
 void moveCursor(int,int*,int*,int*);
-/*
-void editField(WINDOW *pad,int *padr_off,int *pad_segment,
-               int *pad_view_height,int *pad_view_width,
-               int *vqs,int *selectIndex,char answer[]) {
-*/
-void editField(WINDOW*,int*,int*,int*,int*,int*,int*,char[]);
+
+void editField(struct survey_pad*,int,int,char[]);
+void moveIndex(int,int *,int *,struct survey_pad*);
 void forceQuit(void);
+
+
 
 int main(int argc,char *argv[])
 {
@@ -198,6 +206,17 @@ int main(int argc,char *argv[])
     int pad_view_height = (maxl-(2*BORDER));
     int pad_view_width  = maxc;
 
+/*
+struct SurveyPad {
+  WINDOW *pad;
+  int *padr_off; //where the pad should start in the window
+  int *padc_off; // ...
+  int *pad_view_height; //viewport height
+  int *pad_view_width;  //viewport width
+};
+*/
+
+
     //DEBUG BUFFER
     int dby = BORDER+pad_view_height;
     int dbx = 0;
@@ -220,62 +239,41 @@ int main(int argc,char *argv[])
     wattron(pad,COLOR_PAIR(before));
     prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
 
+    struct survey_pad spad = {
+      .pad             = pad,
+      .padr_off        = padr_off,
+      .padc_off        = padc_off,
+      .pad_view_height = pad_view_height,
+      .pad_view_width  = pad_view_width,
+      .vqs             = vqs,
+      .nq              = nq
+    };
+
+
     //read in keypresses until 'q' or F1 are pressed
     int uch;
     int ok = 1;
     USERREAD:while (ok) { 
       uch = getch();
       switch(uch) {
+        case 'k'    : //fall through
         case KEY_UP :
-          if ( selectIndex != 0 ) {
-            int before = wattron(pad,COLOR_PAIR(1));
-            //delete old cursor 
-            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
-            //update index
-            selectIndex--;
-            //add new cursor
-            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-            wattron(pad,COLOR_PAIR(before));
-
-            //move pad if stepping over vqs boundary (visible questions)
-            if ((selectIndex+1) % vqs == 0) {
-              mvprintw(dby,0,"Upper Boundary reached at %d",selectIndex);
-              pad_segment-=1;
-            }
-
-          }
-          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+          moveIndex(-1,&selectIndex,&pad_segment,&spad);
           break;
+        case 'j' : //fall through
         case KEY_DOWN :  
-          if ( selectIndex != nq-1 ) {
-            
-            int before = wattron(pad,COLOR_PAIR(1));
-            //delete old cursor 
-            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
-            //update index
-            selectIndex++;
-            //add new cursor
-            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-            wattron(pad,COLOR_PAIR(before));
-
-            if (selectIndex % vqs == 0) {
-              //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-              mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
-              pad_segment+=1;
-            }
-          }
-          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+          moveIndex(1,&selectIndex,&pad_segment,&spad);
           break;
-        //case KEY_STAB :  
-        case '\t' : //unsure if ncurses has a built in tab constant
-          /*
-          printDebug(&dby,&dbx,"Tab Key Pressed",&selectIndex);
-          int offSet = (selectIndex == eq-1) ? -eq + 1 : 1;
-          moveCursor(offSet,&sy,&selectIndex,&nq); 
-          */
+        case '\t' : 
+          //for now just forward tab, but in the future cycle tab
+          //will require reworked moveIndex (unless I want a hacky
+          //for loop )
+          moveIndex(1,&selectIndex,&pad_segment,&spad);
           break;
         case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
-          editField(pad,&padr_off,&pad_segment,&pad_view_height,&pad_view_width,&vqs,&selectIndex,answers[selectIndex]);
+
+          //void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
+          editField(&spad,pad_segment,selectIndex,answers[selectIndex]);
           break;
         case KEY_F(1) : 
           ok = 0;
@@ -392,14 +390,10 @@ void moveCursor(int dcy,int *sy,int *selectIndex,int *nq) {
 }
 */
 
-//sy is problematic ...
-
 //need to ban all control/special characters , but
 //have a special process for backspace and clear
 //WARNING! not checking for buffer overflow
-void editField(WINDOW *pad,int *padr_off,int *pad_segment,
-               int *pad_view_height,int *pad_view_width,
-               int *vqs,int *selectIndex,char answer[]) {
+void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
   //needs all this shit, maybe it's time to add structs
 
   //get number of chars in the buffer
@@ -445,23 +439,115 @@ void editField(WINDOW *pad,int *padr_off,int *pad_segment,
         if (charPos < MAX_ACHARS-1) {
           //do not write control characters
           if (! ( ic <= 31 || ic == 127 ) )
-            mvwaddch(pad,QSPACE*(*selectIndex),MAX_QCHARS+charPos,ic);
+            mvwaddch(spad->pad,QSPACE*(selectIndex),MAX_QCHARS+charPos,ic);
             answer[charPos] = ic;
             answer[charPos+1] = '\0';
             charPos++; 
-            prefresh(pad,(*pad_segment)*(*vqs*QSPACE),0,*padr_off,0,*pad_view_height + *padr_off,*pad_view_width);
+            prefresh(spad->pad,pad_segment*spad->vqs*QSPACE,
+              0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
         }
     }
     refresh();
   }
 }
 
-void forceQuit() {
+void forceQuit(void) {
   clear();
   refresh();
   endwin();
   fflush(stdout);
   exit(0);
 }
+
+
+void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) {
+
+  if (i<0) {
+    if ( *selectIndex != 0 ) {
+
+      int before = wattron(spad->pad,COLOR_PAIR(1));
+      //delete old cursor 
+      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,' '); 
+
+      //update index
+      (*selectIndex)--;
+      //add new cursor
+      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,'>'); 
+      wattron(spad->pad,COLOR_PAIR(before));
+
+      //move pad if stepping over vqs boundary (visible questions)
+      if (((*selectIndex)+1) % spad->vqs == 0) {
+        //mvprintw(dby,0,"Upper Boundary reached at %d",(*selectIndex));
+        (*pad_segment)--;
+      }
+
+    }
+ } else {
+    if ( *selectIndex != spad->nq-1 ) {
+
+      int before = wattron(spad->pad,COLOR_PAIR(1));
+      //delete old cursor 
+      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,' '); 
+
+      //update index
+      (*selectIndex)++;
+      //add new cursor
+      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,'>'); 
+      wattron(spad->pad,COLOR_PAIR(before));
+
+      if ((*selectIndex) % spad->vqs == 0) {
+        //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+        //mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
+        (*pad_segment)++;
+      }
+    }
+ }
+ prefresh(spad->pad,(*pad_segment)*(spad->vqs*QSPACE),0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
+}
+/*
+case KEY_UP :
+          if ( selectIndex != 0 ) {
+            int before = wattron(pad,COLOR_PAIR(1));
+            //delete old cursor 
+            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
+            //update index
+            selectIndex--;
+            //add new cursor
+            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+            wattron(pad,COLOR_PAIR(before));
+
+            //move pad if stepping over vqs boundary (visible questions)
+            if ((selectIndex+1) % vqs == 0) {
+              mvprintw(dby,0,"Upper Boundary reached at %d",selectIndex);
+              pad_segment-=1;
+            }
+
+          }
+          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+          break;
+        case 'j' : //fall through
+        case KEY_DOWN :  
+          if ( selectIndex != nq-1 ) {
+            
+            int before = wattron(pad,COLOR_PAIR(1));
+            //delete old cursor 
+            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
+            //update index
+            selectIndex++;
+            //add new cursor
+            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+            wattron(pad,COLOR_PAIR(before));
+
+            if (selectIndex % vqs == 0) {
+              //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+              mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
+              pad_segment+=1;
+            }
+          }
+          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+          break;
+*/
+
+
 
 
