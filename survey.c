@@ -6,24 +6,30 @@
 
 #define MAX_QCHARS 50 //max chars in question buffer
 #define MAX_ACHARS 50 //max chars in answer buffer
-#define MAX_QS     10 //max questions
-#define QSPACE     4  //gap between questions
-#define BANNER     4  //space of the survey heading in vertical units
+#define MAX_QS     30 //max questions
+#define QSPACE    3// 6  //gap between questions
+#define BORDER     8  //vertical units of header and footer
 
 #define MAX_FILE_PATH 200
-
 //#define WIN_V 60
 //#define WIN_H 120
 
 void printDebug(int*,int*,char*,int*);
 void moveCursor(int,int*,int*,int*);
-void editField(int*,int*,char[]);
+/*
+void editField(WINDOW *pad,int *padr_off,int *pad_segment,
+               int *pad_view_height,int *pad_view_width,
+               int *vqs,int *selectIndex,char answer[]) {
+*/
+void editField(WINDOW*,int*,int*,int*,int*,int*,int*,char[]);
 void forceQuit(void);
 
 int main(int argc,char *argv[])
 {
-
+    //////////////////
     // process cargs
+    //////////////////
+
     char survey_file_path[MAX_FILE_PATH] = {'\0'};
     printf("There are %d command line args\n", argc);
     for ( int i = 0; i < argc; i++ ) {
@@ -50,19 +56,6 @@ int main(int argc,char *argv[])
     //    Read in data 
     ///////////////////////
     
-
-    //open the target test.xml
-    //char *home = getenv("HOME");
-    /*
-    printf("opening %s for reading\n",survey_file_path);
-    FILE *sfprt; //should be checking if this is a valid pointer
-    if (sfprt = fopen(survey_file_path,"r")) { //open and null check
-      fclose(sfprt); 
-    } else {
-      printf("FILE %s not found",survey_file_path);
-      exit(6);
-    }
-    */
  
     xmlDocPtr doc;
     //file exists?
@@ -110,55 +103,25 @@ int main(int argc,char *argv[])
       }
       cur = cur->next;
     }
-
-    //ad hoc test to see if questions are loading in correctly
-    int i = 0;
-    int end = 0;
-    while (!end && i < MAX_QS) {
-      if (strlen(questions[i]) == 0) {
-        end = 1;
-      } else {
-        printf("%s\n",questions[i]);
-        i++;
-      }
-    }
-
-    //exit(0);
-     
-
-    
     //xmlFreeDoc(doc)  free xml file handler
 
-
-
-
-    // dummy questions set
     int  eq = nq+1; //total item entries (questions and enter)
-    /*
-    char questions[4][MAX_QCHARS+1] = {
-      {" Did you meditate this morning?  "},
-      {" Did you bring lunch today?      "},
-      {" How did you sleep?              "},
-      {" How are you feeling?              "}
-    };
-    char answers[4][MAX_ACHARS+1] = { "" };
-    */
+
+    ///////////////////////////
+    // Curses Config
+    ///////////////////////////
 
     initscr();  // this starts ncurses
-    int maxl,maxc;
-    getmaxyx(stdscr,maxl,maxc);
+    int maxl = 36;
+    int maxc = 120;
     wresize(stdscr,maxl,maxc); //guess of supported screen size (based on vim lns)
     noecho();  // disable echo
     raw();     // disable line buffering
     keypad(stdscr,TRUE); //Get access to F1,F2.... for our window (stdscr)
 
-    //check if there are more questions than that would fit in the window
-    
-
-    
-    ////////////////////////
+    /////////////////////////////
     //   Compatibility Checks
-    ////////////////////////
+    /////////////////////////////
 
     //check cursor state supports
     if ( curs_set(0) == ERR || curs_set(1) == ERR || curs_set(2) == ERR ) {
@@ -170,7 +133,7 @@ int main(int argc,char *argv[])
 
     //color support
     if (!has_colors()) {
-      addstr("your terminal does not support colors, aborting");
+      printw("your terminal does not support colors, aborting");
       refresh();
     }
     if (start_color() != OK) {
@@ -178,7 +141,6 @@ int main(int argc,char *argv[])
       refresh();
       exit(1);
     }
-
 
     //setup color combinations
     init_pair(1,COLOR_MAGENTA,COLOR_BLACK); //questions
@@ -188,92 +150,138 @@ int main(int argc,char *argv[])
     /////////////////////////
     //    Print Layout
     /////////////////////////
+ 
+    char submit_key_string[] = "F1";
+    //int submit_key = KEY_F(1);
+    //BANNER
+    addstr("Daily Survey\n");
+    printw("PRESS %s , to submit",submit_key_string);
 
-    addstr("Daily Survey");
-    for (int i = 0; i < BANNER; i++) {
-      addstr("\n");
-    } 
-
-    //Print out all questions
+    //SUBMIT BUTTON
+    attron(COLOR_PAIR(3));
+    //mvprintw(maxl-BORDER-1,0," Submit \n");
     attron(COLOR_PAIR(1));
+    refresh();
 
+   
+
+    //SURVEY CONTENT
+    attron(COLOR_PAIR(1));
     //source x and y  | location of where the first question is printed    
     int sy,sx;
     getyx(stdscr,sy,sx);  
 
-    //Print question and response fields
-    for ( int i = 0; i < nq; i++) {
-      printw("    [%d]  %s",i,questions[i]);
-      //print out answer field block
-      int y,x;
-      getyx(stdscr,y,x);
-      move(y,MAX_QCHARS);
-      attron(COLOR_PAIR(2));
-      for ( int k = 0; k < MAX_QCHARS; k++) {
-        addch(' ');
-      }
-      attron(COLOR_PAIR(1));
-      for ( int j = 0; j < QSPACE; j++) {
-        printw("\n");
-      }
+    //should be based on number of questions (row-wise);
+    int padspacel = MAX_QS*(QSPACE+1);
+    if (padspacel < maxl - (2*BORDER)) {
+      padspacel = maxl - ( 2*BORDER);
     }
+    WINDOW *pad = newpad(padspacel,maxc);
 
-    //Print Submit Button
-    for ( int i = 0; i < QSPACE; i++) {
-    printw("\n");
+    for ( int i = 0; i < nq; i++) {
+      wattron(pad,COLOR_PAIR(1));
+      //question
+      mvwprintw(pad,i*QSPACE,0,"    [%d]  %s",i,questions[i]);
+      wattron(pad,COLOR_PAIR(2));
+      //answer field
+      wmove(pad,i*QSPACE,MAX_QCHARS);
+      for ( int k = 0; k < MAX_QCHARS; k++) {
+        waddch(pad,' ');
+      }
     }
-    attron(COLOR_PAIR(3));
-    printw(" Submit \n");
-    attron(COLOR_PAIR(1));
+   
+    //viewing window for pad space is (maxlines - 2*BORDER) , running the full window
+    //pminrow , pmincol , sminrow smincol , smaxrow , smaxcol
+    
+    int padr_off = BORDER;
+    int padc_off = 0;
+    int pad_view_height = (maxl-(2*BORDER));
+    int pad_view_width  = maxc;
+
+    //DEBUG BUFFER
+    int dby = BORDER+pad_view_height;
+    int dbx = 0;
+
+    prefresh(pad,0,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+    //display pad outer edges
+    mvprintw(padr_off-1,0,"-------PADDING EDGE-------");
+    mvprintw(1+padr_off+pad_view_height,0,"------PADDING EDGE--------");
     refresh();
 
-    //debug buffer location
-    int dby,dbx;
-    getyx(stdscr,dby,dbx); 
-    dbx = 0;
+    //calculate number of viewable questions
+    int vqs = pad_view_height/QSPACE + 1;
+    mvprintw(dby,0,"vqs is %d",vqs); //debug output
+    int pad_segment = 0; //what segement of the pad we are on 
 
-    //print out form default locationin indicator  
+    //print out form default location indicator  
     int selectIndex = 0;
-    moveCursor(0,&sy,&selectIndex,&nq);
+    int before = wattron(pad,COLOR_PAIR(1));
+    mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+    wattron(pad,COLOR_PAIR(before));
+    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
 
-    //read in keypresses until 'q' is pressed
-    //to be replaced with enter on ENTER segment
+    //read in keypresses until 'q' or F1 are pressed
     int uch;
     int ok = 1;
     USERREAD:while (ok) { 
       uch = getch();
       switch(uch) {
         case KEY_UP :
-          printDebug(&dby,&dbx,"Up Key Pressed",&selectIndex);
-
           if ( selectIndex != 0 ) {
-          printDebug(&dby,&dbx,"Up Key p bdp",&selectIndex);
-          moveCursor(-1,&sy,&selectIndex,&nq); 
+            int before = wattron(pad,COLOR_PAIR(1));
+            //delete old cursor 
+            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
+            //update index
+            selectIndex--;
+            //add new cursor
+            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+            wattron(pad,COLOR_PAIR(before));
+
+            //move pad if stepping over vqs boundary (visible questions)
+            if ((selectIndex+1) % vqs == 0) {
+              mvprintw(dby,0,"Upper Boundary reached at %d",selectIndex);
+              pad_segment-=1;
+            }
+
           }
+          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
           break;
         case KEY_DOWN :  
-          printDebug(&dby,&dbx,"Down Key Pressed",&selectIndex);
+          if ( selectIndex != nq-1 ) {
+            
+            int before = wattron(pad,COLOR_PAIR(1));
+            //delete old cursor 
+            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
+            //update index
+            selectIndex++;
+            //add new cursor
+            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+            wattron(pad,COLOR_PAIR(before));
 
-          if ( selectIndex != eq-1 ) {
-          moveCursor(1,&sy,&selectIndex,&nq); 
+            if (selectIndex % vqs == 0) {
+              //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+              mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
+              pad_segment+=1;
+            }
           }
+          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
           break;
         //case KEY_STAB :  
         case '\t' : //unsure if ncurses has a built in tab constant
+          /*
           printDebug(&dby,&dbx,"Tab Key Pressed",&selectIndex);
           int offSet = (selectIndex == eq-1) ? -eq + 1 : 1;
           moveCursor(offSet,&sy,&selectIndex,&nq); 
+          */
           break;
-        case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter
-          if (selectIndex == eq-1) {
-            printDebug(&dby,&dbx,"Enter Key Pressed (exit attempt)",&selectIndex);
-            ok = 0; 
-          } else {
-            printDebug(&dby,&dbx,"Enter Key Pressed (edit field)",&selectIndex);
-            editField(&sy,&selectIndex,answers[selectIndex]);
-          }
+        case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
+          editField(pad,&padr_off,&pad_segment,&pad_view_height,&pad_view_width,&vqs,&selectIndex,answers[selectIndex]);
+          break;
+        case KEY_F(1) : 
+          ok = 0;
           break;
         case KEY_BACKSPACE : ;
+          /*
           int y,x; //if i don't add the above semi colon i get the error
                    //a label can only be part of a statement and a declaration is not a statement..
           getyx(stdscr,y,x);
@@ -285,8 +293,13 @@ int main(int argc,char *argv[])
           attron(COLOR_PAIR(1));
           //reset the associated string buffer
           answers[selectIndex][0] = '\0';
-          default :
+          */
           break;
+      case 'q':
+        forceQuit();
+        break;
+      default :
+        break;
       }
       refresh();
     }
@@ -297,7 +310,8 @@ int main(int argc,char *argv[])
       complete &= ( answers[i][0] != '\0');
     }
     if (!complete) {
-      printDebug(&dby,&dbx,"Some fields are incomplete",&selectIndex);
+      //printDebug(&dby,&dbx,"Some fields are incomplete",&selectIndex);
+      mvprintw(dby,0,"Some fields are incomplete");
       ok = 1;
       goto USERREAD; //lazy
     }
@@ -352,6 +366,8 @@ void printDebug(int* dby,int* dbx,char* msg,int* si) {
   refresh();
 }
 
+//sy is problematic
+
 /* delete the previous cursor character, then
    move to the new location and write the new 
    location character
@@ -359,6 +375,7 @@ void printDebug(int* dby,int* dbx,char* msg,int* si) {
    @sy    - pointer to source y
    @selectIndex - pointer to current question index
 */
+/*
 void moveCursor(int dcy,int *sy,int *selectIndex,int *nq) {
 
   //delete the last cursor 
@@ -373,17 +390,20 @@ void moveCursor(int dcy,int *sy,int *selectIndex,int *nq) {
 
   refresh();
 }
+*/
+
+//sy is problematic ...
 
 //need to ban all control/special characters , but
 //have a special process for backspace and clear
 //WARNING! not checking for buffer overflow
-void editField(int *sy,int *selectIndex,char answer[]) {
-  //move cursor to start of field 
-  //enable cursor
-  int prevCursorState = curs_set(2);
-  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),MAX_QCHARS);
+void editField(WINDOW *pad,int *padr_off,int *pad_segment,
+               int *pad_view_height,int *pad_view_width,
+               int *vqs,int *selectIndex,char answer[]) {
+  //needs all this shit, maybe it's time to add structs
 
   //get number of chars in the buffer
+  //can probably replace with strlen ...
   int charCount = 0;
   int end = 0;
   int charPos = 0;
@@ -395,13 +415,10 @@ void editField(int *sy,int *selectIndex,char answer[]) {
       charPos++;  
     }
   }
-  //charPos--;
+
   while (ok) {
     int ic = getch();
     switch(ic) { 
-      case 'q':
-        forceQuit();
-        break;
       case 10 :
         ok = 0;
         break;
@@ -411,6 +428,7 @@ void editField(int *sy,int *selectIndex,char answer[]) {
          going on here
       */
       case KEY_BACKSPACE :;
+        /*
         attron(COLOR_PAIR(2));
         addch('X');
         attron(COLOR_PAIR(1));
@@ -422,21 +440,20 @@ void editField(int *sy,int *selectIndex,char answer[]) {
         answer[charPos] = '\0';
         charPos--;
         break;
+        */
       default :
         if (charPos < MAX_ACHARS-1) {
           //do not write control characters
           if (! ( ic <= 31 || ic == 127 ) )
-            addch(ic);
+            mvwaddch(pad,QSPACE*(*selectIndex),MAX_QCHARS+charPos,ic);
             answer[charPos] = ic;
             answer[charPos+1] = '\0';
             charPos++; 
+            prefresh(pad,(*pad_segment)*(*vqs*QSPACE),0,*padr_off,0,*pad_view_height + *padr_off,*pad_view_width);
         }
     }
     refresh();
-    
   }
-  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
-  curs_set(prevCursorState);
 }
 
 void forceQuit() {
