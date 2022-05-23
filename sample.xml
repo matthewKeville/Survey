@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<survey>
+  <question>
+    <prompt>How are you feeling right now?</prompt>
+  </question>
+
+  <question>
+    <prompt>What are you grateful for today?</prompt>
+  </question>
+
+  <question>
+    <prompt>Who do you miss?</prompt>
+  </question>
+
+  <question>
+    <prompt>What did you have for dinner last night?</prompt>
+  </question>
+
+  <question>
+    <prompt>What TV show did you watch last?</prompt>
+  </question>
+
+  <question>
+    <prompt>Who was your last phone call with?</prompt>
+  </question>
+
+  <question>
+    <prompt>Who the first person you talked to today?</prompt>
+  </question>
+
+  <question>
+    <prompt>Who was the last person you talked to last night?</prompt>
+  </question>
+
+  <question>
+    <prompt>Are you feeling confident today?</prompt>
+  </question>
+</survey>
+
+

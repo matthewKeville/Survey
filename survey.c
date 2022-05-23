@@ -1,22 +1,160 @@
 #include<ncurses.h>
 #include<stdlib.h>
 #include<string.h>
+#include<libxml/parser.h>
+#include<libxml/tree.h>
 
-#define MAX_QCHARS 50
-#define MAX_ACHARS 50
-#define QSPACE     4
+#define MAX_QCHARS 50 //max chars in question buffer
+#define MAX_ACHARS 50 //max chars in answer buffer
+#define MAX_QS     10 //max questions
+#define QSPACE     4  //gap between questions
+#define BANNER     4  //space of the survey heading in vertical units
+
+#define MAX_FILE_PATH 200
+
+//#define WIN_V 60
+//#define WIN_H 120
 
 void printDebug(int*,int*,char*,int*);
-void moveCursor(int,int*,int*);
+void moveCursor(int,int*,int*,int*);
 void editField(int*,int*,char[]);
+void forceQuit(void);
 
-int main(void)
+int main(int argc,char *argv[])
 {
+
+    // process cargs
+    char survey_file_path[MAX_FILE_PATH] = {'\0'};
+    printf("There are %d command line args\n", argc);
+    for ( int i = 0; i < argc; i++ ) {
+      if (!strcmp(argv[i],"-s")) { //look for survey file flag
+        if (i == argc) {
+          printf("You need to supply a file to -s"); //check one error case (others not handled yet)
+          exit(10);
+        } else {
+          i++; 
+          strcpy(survey_file_path,argv[i]); 
+          printf("found survey file %s\n",survey_file_path);
+        }
+      }
+      printf("%d %s\n",i,argv[i]);
+    }
+    
+    printf("%s has %zu length\n",survey_file_path,strlen(survey_file_path));
+    if (sizeof(survey_file_path) == 0) {
+      printf("no file supplised with -s");
+    }
+    
+
+    ///////////////////////
+    //    Read in data 
+    ///////////////////////
+    
+
+    //open the target test.xml
+    //char *home = getenv("HOME");
+    /*
+    printf("opening %s for reading\n",survey_file_path);
+    FILE *sfprt; //should be checking if this is a valid pointer
+    if (sfprt = fopen(survey_file_path,"r")) { //open and null check
+      fclose(sfprt); 
+    } else {
+      printf("FILE %s not found",survey_file_path);
+      exit(6);
+    }
+    */
+ 
+    xmlDocPtr doc;
+    //file exists?
+    doc = xmlReadFile(survey_file_path,NULL,0);
+    if (doc == NULL) {
+      printf("failed to parse file %s\n",survey_file_path);
+      xmlFreeDoc(doc);
+      exit(5);
+    } 
+    //validation
+    xmlNodePtr cur = xmlDocGetRootElement(doc);
+    if (cur == NULL) {
+      printf("empty xml document\n");
+      exit(6);
+    }
+
+    if (xmlStrcmp(cur->name, (const xmlChar *) "survey")) {
+      printf("document root of wrong type, root node!=survey , has %s", cur->name);
+      exit(7);
+    }
+
+
+    char questions[MAX_QS][MAX_QCHARS+1] = {{'\0'}};
+    char answers[MAX_QS][MAX_ACHARS+1] = {{'\0'}};
+
+    int nq = 0;
+    cur = cur->xmlChildrenNode;
+    while (cur != NULL) {
+      //iterate through the node list of the current node
+      //until none are left (if they are of type questio process further)
+      if ( (!xmlStrcmp(cur->name,(const xmlChar *)"question"))) {
+        //iterate through the node list of questions
+        //if they contains child nodes called "prompt"
+        //get the value they contain
+        xmlNodePtr bur = cur->xmlChildrenNode;
+        while (bur != NULL) {
+          if ((!xmlStrcmp(bur->name, (const xmlChar*)"prompt"))) {
+            //printf("prompt %s\n",xmlNodeListGetString(doc,bur->xmlChildrenNode,1));
+            //rquestions[num_q] = xmlNodeListGetString(doc,bur->xmlChildrenNode,1); 
+            strcpy(questions[nq],xmlNodeListGetString(doc,bur->xmlChildrenNode,1)); 
+            nq++; 
+          }
+          bur = bur->next;
+        }
+      }
+      cur = cur->next;
+    }
+
+    //ad hoc test to see if questions are loading in correctly
+    int i = 0;
+    int end = 0;
+    while (!end && i < MAX_QS) {
+      if (strlen(questions[i]) == 0) {
+        end = 1;
+      } else {
+        printf("%s\n",questions[i]);
+        i++;
+      }
+    }
+
+    //exit(0);
+     
+
+    
+    //xmlFreeDoc(doc)  free xml file handler
+
+
+
+
+    // dummy questions set
+    int  eq = nq+1; //total item entries (questions and enter)
+    /*
+    char questions[4][MAX_QCHARS+1] = {
+      {" Did you meditate this morning?  "},
+      {" Did you bring lunch today?      "},
+      {" How did you sleep?              "},
+      {" How are you feeling?              "}
+    };
+    char answers[4][MAX_ACHARS+1] = { "" };
+    */
+
     initscr();  // this starts ncurses
-    wresize(stdscr,26,120); //guess of supported screen size (based on vim lns)
+    int maxl,maxc;
+    getmaxyx(stdscr,maxl,maxc);
+    wresize(stdscr,maxl,maxc); //guess of supported screen size (based on vim lns)
     noecho();  // disable echo
     raw();     // disable line buffering
     keypad(stdscr,TRUE); //Get access to F1,F2.... for our window (stdscr)
+
+    //check if there are more questions than that would fit in the window
+    
+
     
     ////////////////////////
     //   Compatibility Checks
@@ -41,20 +179,6 @@ int main(void)
       exit(1);
     }
 
-    ///////////////////////
-    //    Read in data 
-    ///////////////////////
-
-    // dummy questions set
-    int  nq = 4; //num questions
-    int  eq = nq+1; //total item entries (questions and enter)
-    char questions[4][MAX_QCHARS+1] = {
-      {" Did you meditate this morning?  "},
-      {" Did you bring lunch today?      "},
-      {" How did you sleep?              "},
-      {" How are you feeling?              "}
-    };
-    char answers[4][MAX_ACHARS+1] = { "" };
 
     //setup color combinations
     init_pair(1,COLOR_MAGENTA,COLOR_BLACK); //questions
@@ -66,6 +190,9 @@ int main(void)
     /////////////////////////
 
     addstr("Daily Survey");
+    for (int i = 0; i < BANNER; i++) {
+      addstr("\n");
+    } 
 
     //Print out all questions
     attron(COLOR_PAIR(1));
@@ -76,9 +203,6 @@ int main(void)
 
     //Print question and response fields
     for ( int i = 0; i < nq; i++) {
-      for ( int j = 0; j < QSPACE; j++) {
-        printw("\n");
-      }
       printw("    [%d]  %s",i,questions[i]);
       //print out answer field block
       int y,x;
@@ -89,6 +213,9 @@ int main(void)
         addch(' ');
       }
       attron(COLOR_PAIR(1));
+      for ( int j = 0; j < QSPACE; j++) {
+        printw("\n");
+      }
     }
 
     //Print Submit Button
@@ -107,7 +234,7 @@ int main(void)
 
     //print out form default locationin indicator  
     int selectIndex = 0;
-    moveCursor(0,&sy,&selectIndex);
+    moveCursor(0,&sy,&selectIndex,&nq);
 
     //read in keypresses until 'q' is pressed
     //to be replaced with enter on ENTER segment
@@ -121,21 +248,21 @@ int main(void)
 
           if ( selectIndex != 0 ) {
           printDebug(&dby,&dbx,"Up Key p bdp",&selectIndex);
-          moveCursor(-1,&sy,&selectIndex); 
+          moveCursor(-1,&sy,&selectIndex,&nq); 
           }
           break;
         case KEY_DOWN :  
           printDebug(&dby,&dbx,"Down Key Pressed",&selectIndex);
 
           if ( selectIndex != eq-1 ) {
-          moveCursor(1,&sy,&selectIndex); 
+          moveCursor(1,&sy,&selectIndex,&nq); 
           }
           break;
         //case KEY_STAB :  
         case '\t' : //unsure if ncurses has a built in tab constant
           printDebug(&dby,&dbx,"Tab Key Pressed",&selectIndex);
           int offSet = (selectIndex == eq-1) ? -eq + 1 : 1;
-          moveCursor(offSet,&sy,&selectIndex); 
+          moveCursor(offSet,&sy,&selectIndex,&nq); 
           break;
         case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter
           if (selectIndex == eq-1) {
@@ -232,15 +359,18 @@ void printDebug(int* dby,int* dbx,char* msg,int* si) {
    @sy    - pointer to source y
    @selectIndex - pointer to current question index
 */
-void moveCursor(int dcy,int *sy,int *selectIndex) {
+void moveCursor(int dcy,int *sy,int *selectIndex,int *nq) {
+
   //delete the last cursor 
-  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
+  move((*sy)+(QSPACE*(*selectIndex)),0);
   addch(' ');
   //update selected index
   *selectIndex = (*selectIndex) + dcy;
   //draw new cursor
-  move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
+  move((*sy)+(QSPACE*(*selectIndex)),0);
   printw(">");
+
+
   refresh();
 }
 
@@ -269,6 +399,9 @@ void editField(int *sy,int *selectIndex,char answer[]) {
   while (ok) {
     int ic = getch();
     switch(ic) { 
+      case 'q':
+        forceQuit();
+        break;
       case 10 :
         ok = 0;
         break;
@@ -304,6 +437,14 @@ void editField(int *sy,int *selectIndex,char answer[]) {
   }
   move(QSPACE+(*sy)+(QSPACE*(*selectIndex)),0);
   curs_set(prevCursorState);
+}
+
+void forceQuit() {
+  clear();
+  refresh();
+  endwin();
+  fflush(stdout);
+  exit(0);
 }
 
 
