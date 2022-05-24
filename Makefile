@@ -3,3 +3,5 @@ goal:
 	echo "Bulding... main"
 test:
 	./main -s sample.xml
+validate:
+	xmllint --schema schema.xsd sample.xml --noout

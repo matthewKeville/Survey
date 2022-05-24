@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+
+<!-- Define the rule for any element named survey -->
+  <xs:element name="survey">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="title" type="xs:string"/>
+        <xs:element name="author" type="xs:string"/>
+        <xs:element ref="question" minOccurs="1" maxOccurs="50"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <xs:element name="question">
+    <xs:complexType>
+      <xs:sequence>
+         <xs:element name="prompt" type="xs:string"/>
+         <xs:element ref="questionType"/>
+         <xs:choice>
+           <xs:element ref="multipleChoice"/>
+           <xs:element ref="freeResponse"/>
+           <xs:element ref="scale"/>
+         </xs:choice>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <xs:element name="questionType">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:enumeration value="FR"/>
+        <xs:enumeration value="MC"/>
+        <xs:enumeration value="SA"/>
+        <xs:enumeration value="SC"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+
+ <xs:element name="multipleChoice">
+   <xs:complexType>
+     <xs:sequence>
+       <xs:element name="exclusive"/> <!-- select all or multiple choice -->
+       <xs:element name="answer" minOccurs="2" maxOccurs="4"/>
+     </xs:sequence>
+   </xs:complexType>
+ </xs:element>
+
+ <xs:element name="freeResponse">
+ </xs:element>
+
+ <xs:element name="scale">
+   <xs:complexType>
+     <xs:sequence>
+       <xs:element name="min" type="xs:integer"/>
+       <xs:element name="max" type="xs:integer"/> <!-- Unfortunately I can't validate min/max/step/start consistency -->
+       <xs:element name="step" type="xs:integer"/>
+       <xs:element name="start" type="xs:integer"/>
+     </xs:sequence>
+   </xs:complexType>
+ </xs:element>
+
+
+</xs:schema>

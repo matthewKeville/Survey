@@ -4,36 +4,46 @@
   <author>Matthew Keville</author>
 
   <question>
+    <prompt>Which of the following did you do yesterday?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <exclusive>0</exclusive>
+      <answer>Clean your room?</answer>
+      <answer>Workout?</answer>
+      <answer>Cook food?</answer>
+      <answer>Play Guitar?</answer>
+    </multipleChoice>
+  </question>
+
+  <question>
     <prompt>How are you feeling right now?</prompt>
+    <questionType>SA</questionType>
+    <multipleChoice>
+      <exclusive>1</exclusive>
+      <answer>Bad</answer>
+      <answer>Okay</answer>
+      <answer>Good</answer>
+      <answer>Great</answer>
+    </multipleChoice>
   </question>
 
   <question>
-    <prompt>What are you grateful for today?</prompt>
+    <prompt>How are you feeling right now?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse/>
   </question>
 
   <question>
-    <prompt>Who do you miss?</prompt>
+    <prompt>On a scale of 1 to 10, 10 being most awake, how awake are you?</prompt>
+    <questionType>SC</questionType>
+    <scale>
+      <min>1</min>
+      <max>10</max>
+      <step>1</step>
+      <start>5</start>
+    </scale>
   </question>
 
-  <question>
-    <prompt>What did you have for dinner last night?</prompt>
-  </question>
-
-  <question>
-    <prompt>What TV show did you watch last?</prompt>
-  </question>
-
-  <question>
-    <prompt>Who was your last phone call with?</prompt>
-  </question>
-
-  <question>
-    <prompt>Who the first person you talked to today?</prompt>
-  </question>
-
-  <question>
-    <prompt>Who was the last person you talked to last night?</prompt>
-  </question>
 </survey>
 
 
