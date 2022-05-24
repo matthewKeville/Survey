@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <survey>
+  <title>Sample Quiz</title>
+  <author>Matthew Keville</author>
+
   <question>
     <prompt>How are you feeling right now?</prompt>
   </question>
@@ -31,20 +34,6 @@
   <question>
     <prompt>Who was the last person you talked to last night?</prompt>
   </question>
-
-  <question>
-    <prompt>Who was your last phone call with?</prompt>
-  </question>
-
-  <question>
-    <prompt>Who the first person you talked to today?</prompt>
-  </question>
-
-  <question>
-    <prompt>Who was the last person you talked to last night?</prompt>
-  </question>
-
-
 </survey>
 
 

@@ -1,32 +1,34 @@
-#include<ncurses.h>
 #include<stdlib.h>
 #include<string.h>
+#include<time.h>
+#include<sys/time.h> //gettimeofday
+
+#include<ncurses.h>
 #include<libxml/parser.h>
 #include<libxml/tree.h>
 
-#define MAX_QCHARS 50 //max chars in question buffer
-#define MAX_ACHARS 50 //max chars in answer buffer
-#define MAX_QS     30 //max questions
-#define QSPACE    8// 6  //gap between questions
-#define BORDER    2  //vertical units of header and footer
+#define MAX_QCHARS 50   //max chars in question buffer
+#define MAX_ACHARS 50   //max chars in answer buffer
+#define MAX_QS     30   //max questions
+#define QSPACE     8    //row gap between questions
+#define BORDER     3    //vertical units of header and footer
 
 #define MAX_FILE_PATH 200
 
 struct survey_pad {
   WINDOW *pad;
-  int padr_off; //where the pad should start in the window
-  int padc_off; // ...
-  int pad_view_height; //viewport height
-  int pad_view_width;  //viewport width
-  int vqs; //number of visible questions
-  int nq;
+  int padr_off;         //where the pad should start in the window (in rows)
+  int padc_off;         //where the pad should start in the window (in cols)
+  int pad_view_height;  //viewport height
+  int pad_view_width;   //viewport width
+  int vqs;              //number of visible questions
+  int nq;               //number of questions
 };
 
 
-void printDebug(int*,int*,char*,int*);
-void moveCursor(int,int*,int*,int*);
-
+//void printDebug(int*,int*,char*,int*);
 void editField(struct survey_pad*,int,int,char[]);
+void clearField(struct survey_pad*,int,char[]);
 void moveIndex(int,int *,int *,struct survey_pad*);
 void forceQuit(void);
 
@@ -34,29 +36,30 @@ void forceQuit(void);
 
 int main(int argc,char *argv[])
 {
-    //////////////////
-    // process cargs
-    //////////////////
+    /////////////////////
+    // Command Line Args
+    /////////////////////
 
     char survey_file_path[MAX_FILE_PATH] = {'\0'};
     printf("There are %d command line args\n", argc);
     for ( int i = 0; i < argc; i++ ) {
-      if (!strcmp(argv[i],"-s")) { //look for survey file flag
+      if (!strcmp(argv[i],"-s")) {    //look for survey file flag
         if (i == argc) {
-          printf("You need to supply a file to -s"); //check one error case (others not handled yet)
-          exit(10);
+          printf("You need to supply a file to -s");  //check one error case (others not handled yet)
+          exit(1);
         } else {
           i++; 
           strcpy(survey_file_path,argv[i]); 
           printf("found survey file %s\n",survey_file_path);
         }
       }
-      printf("%d %s\n",i,argv[i]);
+      //printf("%d %s\n",i,argv[i]);
     }
-    
-    printf("%s has %zu length\n",survey_file_path,strlen(survey_file_path));
+
+    //check for empty file string
     if (sizeof(survey_file_path) == 0) {
       printf("no file supplised with -s");
+      exit(2);
     }
     
 
@@ -71,24 +74,24 @@ int main(int argc,char *argv[])
     if (doc == NULL) {
       printf("failed to parse file %s\n",survey_file_path);
       xmlFreeDoc(doc);
-      exit(5);
+      exit(3);
     } 
     //validation
     xmlNodePtr cur = xmlDocGetRootElement(doc);
     if (cur == NULL) {
       printf("empty xml document\n");
-      exit(6);
+      exit(4);
     }
 
     if (xmlStrcmp(cur->name, (const xmlChar *) "survey")) {
-      printf("document root of wrong type, root node!=survey , has %s", cur->name);
-      exit(7);
+      printf("invalid file root node!=survey , has %s", cur->name);
+      exit(5);
     }
-
 
     char questions[MAX_QS][MAX_QCHARS+1] = {{'\0'}};
     char answers[MAX_QS][MAX_ACHARS+1] = {{'\0'}};
 
+    //extract questions from xml survey file
     int nq = 0;
     cur = cur->xmlChildrenNode;
     while (cur != NULL) {
@@ -111,21 +114,34 @@ int main(int argc,char *argv[])
       }
       cur = cur->next;
     }
-    //xmlFreeDoc(doc)  free xml file handler
 
-    int  eq = nq+1; //total item entries (questions and enter)
+    //free xml file handler
+    xmlFreeDoc(doc);
+
+    //get time info
+    time_t t;
+    struct tm *start_time;
+    time(&t);
+    start_time = localtime(&t);
+    printf("Started at : %d-%02d-%02d %02d:%02d:%02d\n", start_time->tm_year + 1900,
+      start_time->tm_mon + 1, start_time->tm_mday, start_time->tm_hour, start_time->tm_min, start_time->tm_sec);
+
+    struct timeval t1;
+    gettimeofday(&t1,NULL);
+    printf("time is %ld \n",t1.tv_sec);
 
     ///////////////////////////
     // Curses Config
     ///////////////////////////
 
-    initscr();  // this starts ncurses
+    initscr();  
     int maxl = 36;
     int maxc = 120;
-    wresize(stdscr,maxl,maxc); //guess of supported screen size (based on vim lns)
-    noecho();  // disable echo
-    raw();     // disable line buffering
-    keypad(stdscr,TRUE); //Get access to F1,F2.... for our window (stdscr)
+    wresize(stdscr,maxl,maxc);  //guess of supported screen size (based on vim lns)
+    noecho();                   // disable echo
+    raw();                      // disable line buffering
+    keypad(stdscr,TRUE);        //Get access to F1,F2.... for our window (stdscr)
+
 
     /////////////////////////////
     //   Compatibility Checks
@@ -134,20 +150,20 @@ int main(int argc,char *argv[])
     //check cursor state supports
     if ( curs_set(0) == ERR || curs_set(1) == ERR || curs_set(2) == ERR ) {
       printf("required cursor states are not supported on your terminal");
-      exit(3);
+      exit(6);
     } else {
       curs_set(0);  //hide the cursor
     }
 
     //color support
     if (!has_colors()) {
-      printw("your terminal does not support colors, aborting");
-      refresh();
+      printf("your terminal does not support colors, aborting");
+      exit(7);
     }
+
     if (start_color() != OK) {
-      addstr("Unable to start colors, aborting");
-      refresh();
-      exit(1);
+      printf("Unable to start colors, aborting");
+      exit(8);
     }
 
     //setup color combinations
@@ -156,36 +172,31 @@ int main(int argc,char *argv[])
     init_pair(3,COLOR_WHITE,COLOR_GREEN);   //submit text
 
     /////////////////////////
-    //    Print Layout
+    //    Window Layout
     /////////////////////////
  
-    char submit_key_string[] = "F1";
-    //int submit_key = KEY_F(1);
-    //BANNER
+    char submit_key_string[] = "F1";  //Survey submission key
+ 
+    //Write Survey Banner
     addstr("Daily Survey\n");
-    printw("PRESS %s , to submit",submit_key_string);
+    //Submission info
+    printw("PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
+    refresh(); 
 
-    //SUBMIT BUTTON
-    attron(COLOR_PAIR(3));
-    //mvprintw(maxl-BORDER-1,0," Submit \n");
+    /////////////////////////
+    //  Generate Survey Pad
+    /////////////////////////
+
     attron(COLOR_PAIR(1));
-    refresh();
 
-   
-
-    //SURVEY CONTENT
-    attron(COLOR_PAIR(1));
-    //source x and y  | location of where the first question is printed    
-    int sy,sx;
-    getyx(stdscr,sy,sx);  
-
-    //should be based on number of questions (row-wise);
+    //calculate size of survey container in rows
     int padspacel = MAX_QS*(QSPACE+1);
     if (padspacel < maxl - (2*BORDER)) {
       padspacel = maxl - ( 2*BORDER);
     }
-    WINDOW *pad = newpad(padspacel,maxc);
 
+    WINDOW *pad = newpad(padspacel,maxc);
+    //generate survey in pad
     for ( int i = 0; i < nq; i++) {
       wattron(pad,COLOR_PAIR(1));
       //question
@@ -198,47 +209,16 @@ int main(int argc,char *argv[])
       }
     }
    
-    //viewing window for pad space is (maxlines - 2*BORDER) , running the full window
-    //pminrow , pmincol , sminrow smincol , smaxrow , smaxcol
-    
     int padr_off = BORDER;
     int padc_off = 0;
     int pad_view_height = (maxl-(2*BORDER));
     int pad_view_width  = maxc;
 
-/*
-struct SurveyPad {
-  WINDOW *pad;
-  int *padr_off; //where the pad should start in the window
-  int *padc_off; // ...
-  int *pad_view_height; //viewport height
-  int *pad_view_width;  //viewport width
-};
-*/
-
-
-    //DEBUG BUFFER
-    int dby = BORDER+pad_view_height;
-    int dbx = 0;
-
-    prefresh(pad,0,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-    //display pad outer edges
-    mvprintw(padr_off-1,0,"-------PADDING EDGE-------");
-    mvprintw(1+padr_off+pad_view_height,0,"------PADDING EDGE--------");
-    refresh();
-
-    //calculate number of viewable questions
+    //calculate the number of questions that will fit in the pad viewport
     int vqs = pad_view_height/QSPACE + 1;
-    mvprintw(dby,0,"vqs is %d",vqs); //debug output
     int pad_segment = 0; //what segement of the pad we are on 
 
-    //print out form default location indicator  
-    int selectIndex = 0;
-    int before = wattron(pad,COLOR_PAIR(1));
-    mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-    wattron(pad,COLOR_PAIR(before));
-    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-
+    //create a survey_pad struct to group pad dimensions and state
     struct survey_pad spad = {
       .pad             = pad,
       .padr_off        = padr_off,
@@ -248,6 +228,24 @@ struct SurveyPad {
       .vqs             = vqs,
       .nq              = nq
     };
+
+    //DEBUG BUFFER
+    int dby = BORDER+pad_view_height;
+    int dbx = 0;
+    mvprintw(dby,0,"vqs is %d",vqs); //debug output
+
+    //DEBUG PAD BORDER
+    prefresh(pad,0,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+    mvprintw(padr_off-1,0,"-------PAD START-------");
+    mvprintw(1+padr_off+pad_view_height,0,"------PAD STOP--------");
+
+
+    //draw initial question selector
+    int selectIndex = 0;
+    int before = wattron(pad,COLOR_PAIR(1));
+    mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+    wattron(pad,COLOR_PAIR(before));
+    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
 
 
     //read in keypresses until 'q' or F1 are pressed
@@ -271,7 +269,6 @@ struct SurveyPad {
           moveIndex(1,&selectIndex,&pad_segment,&spad);
           break;
         case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
-
           //void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
           editField(&spad,pad_segment,selectIndex,answers[selectIndex]);
           break;
@@ -279,6 +276,10 @@ struct SurveyPad {
           ok = 0;
           break;
         case KEY_BACKSPACE : ;
+          clearField(&spad,selectIndex,answers[selectIndex]);
+          prefresh(pad,pad_segment*vqs*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+
+ //prefresh(pad,pad_segment*vqs*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
           /*
           int y,x; //if i don't add the above semi colon i get the error
                    //a label can only be part of a statement and a declaration is not a statement..
@@ -299,43 +300,48 @@ struct SurveyPad {
       default :
         break;
       }
+
       refresh();
     }
 
-
+    //validate that all questions have been answered
     int complete = 1;
     for ( int i = 0; i < nq; i++ ) {
       complete &= ( answers[i][0] != '\0');
     }
+
     if (!complete) {
-      //printDebug(&dby,&dbx,"Some fields are incomplete",&selectIndex);
-      mvprintw(dby,0,"Some fields are incomplete");
       ok = 1;
-      goto USERREAD; //lazy
+      goto USERREAD; 
     }
-    
-    //end ncurses before the program exits
+
+    //get elapsed time
+    struct timeval t2;
+    gettimeofday(&t2,NULL);
+    printf("elapsed time is %ld \n",(t2.tv_sec)-(t1.tv_sec));
+
+   
+    //clean up ncurses 
     clear();
     refresh();
-    //print out answer buffers
     endwin();
 
-    //unsure why this loop prints doubled ...
+    //print answers to standard out
+    /*
     for ( int i = 0; i < nq; i++ ) {
       printf("%d  %s\n",i,answers[i]);
     }
+    */
     fflush(stdout);
-   
+    
     //save answers to file 
     char *home = getenv("HOME");
     if (home == NULL) {
       printf("unable to find user home");
-      exit(4);
+      exit(9);
     }
 
     char *fileName = "/save.xml";
-    //why the -1 
-    //if anything it should be +1 for the null byte
     int pathLength = strlen(home) + strlen(fileName)-1;
     char path[pathLength];
 
@@ -344,60 +350,25 @@ struct SurveyPad {
 
     printf("opening %s for writing\n",path);
     FILE *fprt; //should be checking if this is a valid pointer
-    fprt = fopen(path,"w");
-    for ( int i = 0; i < nq; i++) {
-      fprintf(fprt,"%s\n",answers[i]);
+    if (fprt = fopen(path,"w")) {
+      for ( int i = 0; i < nq; i++) {
+        fprintf(fprt,"%s\n",answers[i]);
+      } 
+    } else {
+      printf("Unable to save survey");
+      exit(10);
     }
     fclose(fprt); 
+
 
     return EXIT_SUCCESS;
 }
 
-/* 
-  Print a message out in the debug area 
-*/
-void printDebug(int* dby,int* dbx,char* msg,int* si) {
-
-  move(*dby,*dbx);
-  clrtoeol(); //clear line
-  printw("%s  @select %d",msg,*si);
-  refresh();
-}
-
-//sy is problematic
-
-/* delete the previous cursor character, then
-   move to the new location and write the new 
-   location character
-   @x     - relative new position
-   @sy    - pointer to source y
-   @selectIndex - pointer to current question index
-*/
-/*
-void moveCursor(int dcy,int *sy,int *selectIndex,int *nq) {
-
-  //delete the last cursor 
-  move((*sy)+(QSPACE*(*selectIndex)),0);
-  addch(' ');
-  //update selected index
-  *selectIndex = (*selectIndex) + dcy;
-  //draw new cursor
-  move((*sy)+(QSPACE*(*selectIndex)),0);
-  printw(">");
-
-
-  refresh();
-}
-*/
 
 //need to ban all control/special characters , but
 //have a special process for backspace and clear
 //WARNING! not checking for buffer overflow
 void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
-  //needs all this shit, maybe it's time to add structs
-
-  //get number of chars in the buffer
-  //can probably replace with strlen ...
   int charCount = 0;
   int end = 0;
   int charPos = 0;
@@ -410,7 +381,10 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
     }
   }
 
+  int last = wattron(spad->pad,COLOR_PAIR(1));
   while (ok) {
+    mvprintw(20,0,"char pos is %d",charPos); //debug output
+    refresh();
     int ic = getch();
     switch(ic) { 
       case 10 :
@@ -447,9 +421,43 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
               0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
         }
     }
-    refresh();
   }
+  wattron(spad->pad,COLOR_PAIR(last));
 }
+
+/*
+struct survey_pad {
+  WINDOW *pad;
+  int padr_off;         //where the pad should start in the window (in rows)
+  int padc_off;         //where the pad should start in the window (in cols)
+  int pad_view_height;  //viewport height
+  int pad_view_width;   //viewport width
+  int vqs;              //number of visible questions
+  int nq;               //number of questions
+};
+*/
+
+
+void clearField(struct survey_pad *spad,int selectIndex,char answer[]) {
+  //clear internal buffer 
+  answer[0] = '\0';
+  //fill answer field with blank character
+  //mvprintw(spad->pad,spad->padr_off+(selectIndex*QSPACE),padc_off+MAX_QCHARS,"");
+  int last = wattron(spad->pad,COLOR_PAIR(2));
+  for ( int i = 0; i < MAX_QCHARS; i++) {
+    mvwaddch(spad->pad,(selectIndex*QSPACE),spad->padc_off+MAX_QCHARS+i,' ');
+  }
+  wattron(spad->pad,COLOR_PAIR(1));
+}
+
+
+
+
+
+
+
+
+
 
 void forceQuit(void) {
   clear();
@@ -477,7 +485,6 @@ void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) 
 
       //move pad if stepping over vqs boundary (visible questions)
       if (((*selectIndex)+1) % spad->vqs == 0) {
-        //mvprintw(dby,0,"Upper Boundary reached at %d",(*selectIndex));
         (*pad_segment)--;
       }
 
@@ -496,58 +503,9 @@ void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) 
       wattron(spad->pad,COLOR_PAIR(before));
 
       if ((*selectIndex) % spad->vqs == 0) {
-        //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-        //mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
         (*pad_segment)++;
       }
     }
  }
  prefresh(spad->pad,(*pad_segment)*(spad->vqs*QSPACE),0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
 }
-/*
-case KEY_UP :
-          if ( selectIndex != 0 ) {
-            int before = wattron(pad,COLOR_PAIR(1));
-            //delete old cursor 
-            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
-            //update index
-            selectIndex--;
-            //add new cursor
-            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-            wattron(pad,COLOR_PAIR(before));
-
-            //move pad if stepping over vqs boundary (visible questions)
-            if ((selectIndex+1) % vqs == 0) {
-              mvprintw(dby,0,"Upper Boundary reached at %d",selectIndex);
-              pad_segment-=1;
-            }
-
-          }
-          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-          break;
-        case 'j' : //fall through
-        case KEY_DOWN :  
-          if ( selectIndex != nq-1 ) {
-            
-            int before = wattron(pad,COLOR_PAIR(1));
-            //delete old cursor 
-            mvwaddch(pad,QSPACE*selectIndex,0,' '); 
-            //update index
-            selectIndex++;
-            //add new cursor
-            mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-            wattron(pad,COLOR_PAIR(before));
-
-            if (selectIndex % vqs == 0) {
-              //prefresh(pad,selectIndex*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-              mvprintw(dby,0,"Lower Boundary reached at %d",selectIndex);
-              pad_segment+=1;
-            }
-          }
-          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-          break;
-*/
-
-
-
-
