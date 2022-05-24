@@ -26,6 +26,43 @@ struct survey_pad {
 };
 
 
+//[A] [B] [C] [D]
+//     ^   
+struct multiple_choice {
+  char *prompt;
+  char *options; 
+  int  num_options;
+  int selected;
+};
+
+
+//[A] [B] [C] [D]
+//     ^   ^
+struct select_all {
+  char *prompt;
+  char *options; 
+  int  num_options;
+  int *selected;
+};
+
+//On a scale of x .. y
+// [4]
+struct scale_choice {
+  char *prompt;
+  int min;
+  int max;
+  int step;
+  int start;
+  int selected;
+};
+
+//How do you feel about?
+struct free_response {
+  char *prompt;
+  char *response;
+};
+
+
 void editField(struct survey_pad*,int,int,char[]);
 void clearField(struct survey_pad*,int,char[]);
 void moveIndex(int,int *,int *,struct survey_pad*);
