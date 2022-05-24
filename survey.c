@@ -10,8 +10,8 @@
 #define MAX_QCHARS 50   //max chars in question buffer
 #define MAX_ACHARS 50   //max chars in answer buffer
 #define MAX_QS     30   //max questions
-#define QSPACE     8    //row gap between questions
-#define BORDER     3    //vertical units of header and footer
+#define QSPACE     5    //row gap between questions
+#define BORDER     5    //vertical units of header and footer
 
 #define MAX_FILE_PATH 200
 
@@ -26,12 +26,10 @@ struct survey_pad {
 };
 
 
-//void printDebug(int*,int*,char*,int*);
 void editField(struct survey_pad*,int,int,char[]);
 void clearField(struct survey_pad*,int,char[]);
 void moveIndex(int,int *,int *,struct survey_pad*);
 void forceQuit(void);
-
 
 
 int main(int argc,char *argv[])
@@ -135,9 +133,13 @@ int main(int argc,char *argv[])
     ///////////////////////////
 
     initscr();  
-    int maxl = 36;
-    int maxc = 120;
-    wresize(stdscr,maxl,maxc);  //guess of supported screen size (based on vim lns)
+    //total dimensions on curses main window
+    int lines = 36;
+    int cols  = 120;
+    //index of end line and col
+    int maxl = lines-1;
+    int maxc = cols-1;
+    wresize(stdscr,lines,cols);  //guess of supported screen size (based on vim lns)
     noecho();                   // disable echo
     raw();                      // disable line buffering
     keypad(stdscr,TRUE);        //Get access to F1,F2.... for our window (stdscr)
@@ -189,11 +191,15 @@ int main(int argc,char *argv[])
 
     attron(COLOR_PAIR(1));
 
-    //calculate size of survey container in rows
+    //calculate the size of the padd that fits between the borders
     int padspacel = MAX_QS*(QSPACE+1);
     if (padspacel < maxl - (2*BORDER)) {
       padspacel = maxl - ( 2*BORDER);
     }
+
+    //demarcate pad/window boundary
+    mvaddch(maxl-1,maxc-1,'$');
+    mvaddch(maxl-1,0,'$');
 
     WINDOW *pad = newpad(padspacel,maxc);
     //generate survey in pad
@@ -209,13 +215,13 @@ int main(int argc,char *argv[])
       }
     }
    
-    int padr_off = BORDER;
+    int padr_off = BORDER; //what row does the pad start
     int padc_off = 0;
-    int pad_view_height = (maxl-(2*BORDER));
+    int pad_view_height = maxl - (2*BORDER); //how many rows does it go for/
     int pad_view_width  = maxc;
 
     //calculate the number of questions that will fit in the pad viewport
-    int vqs = pad_view_height/QSPACE + 1;
+    int vqs = pad_view_height/QSPACE; // +1
     int pad_segment = 0; //what segement of the pad we are on 
 
     //create a survey_pad struct to group pad dimensions and state
@@ -230,14 +236,13 @@ int main(int argc,char *argv[])
     };
 
     //DEBUG BUFFER
-    int dby = BORDER+pad_view_height;
+    int dby = BORDER+pad_view_height+1;
     int dbx = 0;
     mvprintw(dby,0,"vqs is %d",vqs); //debug output
 
     //DEBUG PAD BORDER
-    prefresh(pad,0,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
-    mvprintw(padr_off-1,0,"-------PAD START-------");
-    mvprintw(1+padr_off+pad_view_height,0,"------PAD STOP--------");
+    mvprintw(padr_off-1,0,"-------PAD BORDER-------"); //just before padd starts
+    mvprintw(padr_off+pad_view_height,0,"------PAD BORDER--------");//just after pad ends
 
 
     //draw initial question selector
@@ -245,7 +250,7 @@ int main(int argc,char *argv[])
     int before = wattron(pad,COLOR_PAIR(1));
     mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
     wattron(pad,COLOR_PAIR(before));
-    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
 
 
     //read in keypresses until 'q' or F1 are pressed
@@ -277,9 +282,9 @@ int main(int argc,char *argv[])
           break;
         case KEY_BACKSPACE : ;
           clearField(&spad,selectIndex,answers[selectIndex]);
-          prefresh(pad,pad_segment*vqs*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
 
- //prefresh(pad,pad_segment*vqs*QSPACE,0,padr_off,0,pad_view_height + padr_off,pad_view_width);
+          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
+
           /*
           int y,x; //if i don't add the above semi colon i get the error
                    //a label can only be part of a statement and a declaration is not a statement..
@@ -417,8 +422,11 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
             answer[charPos] = ic;
             answer[charPos+1] = '\0';
             charPos++; 
-            prefresh(spad->pad,pad_segment*spad->vqs*QSPACE,
-              0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
+  
+            prefresh(spad->pad,
+              pad_segment*spad->vqs*QSPACE,spad->padc_off,
+              spad->padr_off,spad->padc_off,
+              spad->pad_view_height-2 + spad->padr_off,spad->pad_view_width);
         }
     }
   }
@@ -507,5 +515,9 @@ void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) 
       }
     }
  }
- prefresh(spad->pad,(*pad_segment)*(spad->vqs*QSPACE),0,spad->padr_off,0,spad->pad_view_height + spad->padr_off,spad->pad_view_width);
+
+  prefresh(spad->pad,
+    *pad_segment*spad->vqs*QSPACE,spad->padc_off,
+    spad->padr_off,spad->padc_off,
+    spad->pad_view_height-2 + spad->padr_off,spad->pad_view_width);
 }
