@@ -1,0 +1,55 @@
+//Retrieve all questions of the same (type)
+xmllint --xpath '//multipleChoice/parent::question' sample.xml
+
+//Retrieve the answer set of questions of the same type (use on each
+//node to separate
+ xmllint --xpath '//multipleChoice/parent::question/multipleChoice/answer' sample.xml
+
+//Retrieve prompt of question 
+  /prompt
+
+//Retrieve questionType of question
+questionType
+
+--------------------------------------------------------------------------
+
+libxml2 does not seem to support sub-xpaths
+There is a hacky solution where I make a selected node the new root,
+but that is cumbersome.
+
+I think it's best to assign id's to my questions.
+
+Then I can locate an question and grab that id
+Then generate xpath for the rest of the content for that element
+
+*id must start with a letter
+
+Schema must enforce this , and that id's be unique
+
+<question id=q1>
+    <prompt>How are you feeling right now?</prompt>
+    <questionType>SA</questionType>
+    <multipleChoice>
+      <exclusive>1</exclusive>
+      <answer>Bad</answer>
+      <answer>Okay</answer>
+      <answer>Good</answer>
+      <answer>Great</answer>
+    </multipleChoice>
+</question>
+
+get a nodeset of all questions
+
+for each question find what type it is
+xmllint --xpath '//question[@id="q1"]/questionType/text()' sample.xml
+
+suppose multiple choice , is it exclusive?
+//question[@id="q1"]/multipleChoice/exclusive/text()
+
+what are the answers ?
+//question[@id="q1"]/multipleChoice/answer
+
+I can preallocate space for respective struct arrays by querying for counts of all types
+Or I can query for total questions and use a union type.
+
+

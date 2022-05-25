@@ -3,7 +3,7 @@
   <title>Sample Quiz</title>
   <author>Matthew Keville</author>
 
-  <question>
+  <question id="q1">
     <prompt>Which of the following did you do yesterday?</prompt>
     <questionType>MC</questionType>
     <multipleChoice>
@@ -15,7 +15,7 @@
     </multipleChoice>
   </question>
 
-  <question>
+  <question id="q2">
     <prompt>How are you feeling right now?</prompt>
     <questionType>SA</questionType>
     <multipleChoice>
@@ -27,13 +27,13 @@
     </multipleChoice>
   </question>
 
-  <question>
+  <question id="q3">
     <prompt>How are you feeling right now?</prompt>
     <questionType>FR</questionType>
     <freeResponse/>
   </question>
 
-  <question>
+  <question id="q4">
     <prompt>On a scale of 1 to 10, 10 being most awake, how awake are you?</prompt>
     <questionType>SC</questionType>
     <scale>

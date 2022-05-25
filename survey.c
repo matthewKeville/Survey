@@ -6,6 +6,8 @@
 #include<ncurses.h>
 #include<libxml/parser.h>
 #include<libxml/tree.h>
+#include<libxml/xpath.h>
+#include<libxml/xpathInternals.h>
 
 #define MAX_QCHARS 50   //max chars in question buffer
 #define MAX_ACHARS 50   //max chars in answer buffer
@@ -128,6 +130,7 @@ int main(int argc,char *argv[])
 
     //extract questions from xml survey file
     int nq = 0;
+    /*
     cur = cur->xmlChildrenNode;
     while (cur != NULL) {
       //iterate through the node list of the current node
@@ -149,9 +152,46 @@ int main(int argc,char *argv[])
       }
       cur = cur->next;
     }
+    */
+
+    //use xpath expressions to read data in
+    xmlXPathContextPtr xpathCtx;
+    xmlXPathObjectPtr xpathObj;
+
+    xpathCtx = xmlXPathNewContext(doc);
+    //should rely specify on questionType as SA and MC both have multiplceChoice element
+    const xmlChar* xpathExpr = "//multipleChoice/parent::question";
+    //const xmlChar* xpathExpr = "//freeResponse/parent::question";
+    xmlXPathObjectPtr xoptr = xmlXPathEvalExpression(xpathExpr,xpathCtx);
+    xmlNodeSetPtr nodes = xoptr->nodesetval; 
+    xmlNodePtr bur;
+    int size = (nodes) ? nodes->nodeNr : 0;
+    printf("%d nodes found" , size);
+    for ( int i = 0; i < size; i++) {
+      cur = nodes->nodeTab[i];
+      //printf("= node %s : type %d\n ", cur->name , cur->type);
+      printf("%s",(char *) cur->content); //question has no content is has sub nodes
+      xpathCtx = xmlXPathNewContext(cur);
+    }
+    /*
+    xmlNodePtr *xnptr = xnsptr->nodeTab; //ptr ptr
+    int nodes = xnsptr->nodeNr;
+    xmlNode * ptr = *xnptr;
+    xmlChar * chs = ptr->content;
+    int matches = 0;
+    while (ptr != NULL) {
+      matches++;
+      ptr=ptr->next;
+    }
+    printf("found %d",matches);
+    */
 
     //free xml file handler
     xmlFreeDoc(doc);
+
+
+    exit(0);
+
 
     //get time info
     time_t t;
