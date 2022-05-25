@@ -16,15 +16,16 @@
 
   <xs:element name="question">
     <xs:complexType>
-      <xs:sequence>
-         <xs:element name="prompt" type="xs:string"/>
-         <xs:element ref="questionType"/>
-         <xs:choice>
-           <xs:element ref="multipleChoice"/>
-           <xs:element ref="freeResponse"/>
-           <xs:element ref="scale"/>
-         </xs:choice>
-      </xs:sequence>
+        <xs:sequence>
+           <xs:element name="prompt" type="xs:string"/>
+           <xs:element ref="questionType"/>
+           <xs:choice>
+             <xs:element ref="multipleChoice"/>
+             <xs:element ref="freeResponse"/>
+             <xs:element ref="scale"/>
+           </xs:choice>
+        </xs:sequence>
+      <xs:attribute name="id" type="xs:ID" use="required"/>
     </xs:complexType>
   </xs:element>
 
@@ -62,6 +63,5 @@
      </xs:sequence>
    </xs:complexType>
  </xs:element>
-
 
 </xs:schema>

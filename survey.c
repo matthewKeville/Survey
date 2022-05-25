@@ -155,23 +155,27 @@ int main(int argc,char *argv[])
     */
 
     //use xpath expressions to read data in
-    xmlXPathContextPtr xpathCtx;
-    xmlXPathObjectPtr xpathObj;
-
+    xmlXPathContext * xpathCtx;
+    xmlXPathObject * xpathObj;
     xpathCtx = xmlXPathNewContext(doc);
+
     //should rely specify on questionType as SA and MC both have multiplceChoice element
-    const xmlChar* xpathExpr = "//multipleChoice/parent::question";
+    const xmlChar* xpathExpr = "//multipleChoice/parent::question/prompt";
     //const xmlChar* xpathExpr = "//freeResponse/parent::question";
     xmlXPathObjectPtr xoptr = xmlXPathEvalExpression(xpathExpr,xpathCtx);
     xmlNodeSetPtr nodes = xoptr->nodesetval; 
     xmlNodePtr bur;
     int size = (nodes) ? nodes->nodeNr : 0;
     printf("%d nodes found" , size);
+    if (size != 0) {
     for ( int i = 0; i < size; i++) {
       cur = nodes->nodeTab[i];
-      //printf("= node %s : type %d\n ", cur->name , cur->type);
-      printf("%s",(char *) cur->content); //question has no content is has sub nodes
-      xpathCtx = xmlXPathNewContext(cur);
+      if ( cur->type == XML_ELEMENT_NODE) {
+        printf("%s",(char *) cur->name); //question has no content is has sub nodes
+        cur=cur->children; //get the text node
+        printf("%s",(char *) cur->content); //question has no content is has sub nodes
+      }
+    }
     }
     /*
     xmlNodePtr *xnptr = xnsptr->nodeTab; //ptr ptr
