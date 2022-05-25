@@ -22,10 +22,11 @@
            <xs:choice>
              <xs:element ref="multipleChoice"/>
              <xs:element ref="freeResponse"/>
-             <xs:element ref="scale"/>
+             <xs:element ref="scaleChoice"/>
            </xs:choice>
         </xs:sequence>
-      <xs:attribute name="id" type="xs:ID" use="required"/>
+      <!--<xs:attribute name="id" type="xs:ID" use="required"/>-->
+      <xs:attribute ref="id" use="required"/>
     </xs:complexType>
   </xs:element>
 
@@ -53,7 +54,7 @@
  <xs:element name="freeResponse">
  </xs:element>
 
- <xs:element name="scale">
+ <xs:element name="scaleChoice">
    <xs:complexType>
      <xs:sequence>
        <xs:element name="min" type="xs:integer"/>
@@ -63,5 +64,14 @@
      </xs:sequence>
    </xs:complexType>
  </xs:element>
+
+<xs:attribute name="id">
+    <xs:simpleType>
+        <xs:restriction base="xs:ID">
+            <xs:pattern value="q[0-9]{1,5}"/> <!-- must start with then 1-5 to digits -->
+        </xs:restriction>
+    </xs:simpleType>
+</xs:attribute>
+
 
 </xs:schema>
