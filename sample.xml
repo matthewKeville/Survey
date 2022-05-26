@@ -3,64 +3,25 @@
   <title>Sample Quiz</title>
   <author>Matthew Keville</author>
 
-  <question id="q12345">
-    <prompt>Which of the following did you do yesterday?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <exclusive>0</exclusive>
-      <answer>Clean your room?</answer>
-      <answer>Workout?</answer>
-      <answer>Cook food?</answer>
-      <answer>Play Guitar?</answer>
-    </multipleChoice>
-  </question>
-
-  <question id="q8">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <exclusive>1</exclusive>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
-    </multipleChoice>
-  </question>
-
-  <question id="q80">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <exclusive>1</exclusive>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-    </multipleChoice>
-  </question>
-
-  <question id="q82">
-    <prompt>barby</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <exclusive>1</exclusive>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
-    </multipleChoice>
-  </question>
-
-  <question id="q2">
-    <prompt>How are you feeling right now?</prompt>
+  <question id="q236">
+    <prompt>bats??</prompt>
     <questionType>SA</questionType>
     <multipleChoice>
-      <exclusive>1</exclusive>
-      <answer>Bad</answer>
-      <answer>Okay</answer>
-      <answer>Good</answer>
-      <answer>Great</answer>
+      <answer>Basdfad</answer>
+      <answer>foor</answer>
+      <answer>Gasdf</answer>
+      <answer>Greatr</answer>
+    </multipleChoice>
+  </question>
+
+  <question id="q26">
+    <prompt>Iyotr??</prompt>
+    <questionType>SA</questionType>
+    <multipleChoice>
+      <answer>abc</answer>
+      <answer>dog</answer>
+      <answer>mouse</answer>
+      <answer>cat</answer>
     </multipleChoice>
   </question>
 
@@ -69,6 +30,68 @@
     <questionType>FR</questionType>
     <freeResponse/>
   </question>
+
+
+  <question id="q123">
+    <prompt>Which of the following did you do yesterday?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <answer>Clean your room?</answer>
+      <answer>Workout?</answer>
+      <answer>Cook food?</answer>
+      <answer>Play Guitar?</answer>
+    </multipleChoice>
+  </question>
+
+
+
+  <question id="q80">
+    <prompt>dummy question?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <answer>yes?</answer>
+      <answer>no?</answer>
+    </multipleChoice>
+  </question>
+
+  <question id="q8">
+    <prompt>dummy question?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <answer>yes?</answer>
+      <answer>no?</answer>
+      <answer>maybe</answer>
+      <answer>...</answer>
+    </multipleChoice>
+  </question>
+
+
+
+  <question id="q82">
+    <prompt>barby</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <answer>yes?</answer>
+      <answer>no?</answer>
+      <answer>maybe</answer>
+      <answer>...</answer>
+      <answer>no?</answer>
+      <answer>maybe</answer>
+      <answer>...</answer>
+    </multipleChoice>
+  </question>
+
+  <question id="q206">
+    <prompt>Glorb??</prompt>
+    <questionType>SA</questionType>
+    <multipleChoice>
+      <answer>Bad</answer>
+      <answer>Okay</answer>
+      <answer>Good</answer>
+      <answer>Great</answer>
+    </multipleChoice>
+  </question>
+
 
 <!--
   <question id="q42">
@@ -85,5 +108,3 @@
 
 
 </survey>
-
-

@@ -1,5 +1,6 @@
 #include "questions.h"
 
+
 #include<stdlib.h>
 #include<string.h>
 #include<time.h>
@@ -10,6 +11,7 @@
 #include<libxml/tree.h>
 #include<libxml/xpath.h>
 #include<libxml/xpathInternals.h>
+#include<libxml/xmlstring.h>
 
 #define MAX_QCHARS 50   //max chars in question buffer
 #define MAX_ACHARS 50   //max chars in answer buffer
@@ -95,7 +97,7 @@ int main(int argc,char *argv[])
       printf("empty xml document\n");
       exit(4);
     }
-    if (xmlStrcmp(cur->name, (const xmlChar *) "survey")) {
+    if (xmlStrcmp(cur->name,BAD_CAST "survey")) {
       printf("invalid file root node!=survey , has %s", cur->name);
       exit(5);
     }
@@ -106,9 +108,6 @@ int main(int argc,char *argv[])
     // SCHEMA Validation   //
     ////////////////////////
 
-    char questions[MAX_QS][MAX_QCHARS+1] = {{'\0'}};
-    char answers[MAX_QS][MAX_ACHARS+1] = {{'\0'}};
-    int nq = 0;
 
     /////////////////////////
     // PARSE XML
@@ -116,17 +115,19 @@ int main(int argc,char *argv[])
 
     //How many questions are there?
 
-    xmlXPathContext * xpathCtx;
-    xpathCtx = xmlXPathNewContext(doc);
+    xmlXPathContext * xpathCtxTop;
+    xpathCtxTop = xmlXPathNewContext(doc);
 
     // Get the id attribute of a node ... (probably not needed)
     // but used below ..
     xmlChar * getIdAttr(xmlNodePtr cur) {
+      xmlXPathContext *xpathCtx;
+      xpathCtx = xmlXPathNewContext(doc);
+
       xmlChar *value;
       if (cur) {
         xmlAttr* id_attr = cur->properties;
           while(id_attr) {
-            printf("%s",(char *) id_attr->name);
             if (!xmlStrcmp(id_attr->name,(const xmlChar*)"id")) {
               value = xmlNodeListGetString(cur->doc,id_attr->children,1);
             }
@@ -134,7 +135,6 @@ int main(int argc,char *argv[])
           }
       }
       if (!value) {
-        printf("getIdAttr returned garbage");
       }
       return value;
     }
@@ -143,8 +143,16 @@ int main(int argc,char *argv[])
     //get the type of a question given an object id
     //xmllint --xpath "//question[@id = 'q2']/questionType/node()" sample.xml
     xmlChar * getQuestionType(xmlChar* id) {
-      char idXPath[MAX_XPATH];
-      sprintf(idXPath,"//question[@id = '%s']/questionType/node()",(char *) id);
+      printf("id length: %d\n",xmlStrlen(id));
+      printf("get question type start\n");
+      //doc = xmlReadFile(survey_file_path,NULL,0);
+      xmlXPathContext * xpathCtx;
+      xpathCtx = xmlXPathNewContext(doc);
+      printf("new context made\n");
+
+      xmlChar idXPath[MAX_XPATH];
+      //sprintf(idXPath,"//question[@id = '%s']/questionType/node()",(char *) id);
+      xmlStrPrintf(idXPath,MAX_XPATH,"//question[@id = '%s']/questionType/node()",id);
       xmlXPathObjectPtr XPathOP = xmlXPathEvalExpression(idXPath,xpathCtx);
       xmlChar *value  = xmlNodeGetContent((XPathOP->nodesetval->nodeTab[0])); 
       return value;
@@ -158,23 +166,27 @@ int main(int argc,char *argv[])
     //qc question count
     //qhs question header pointer array
     void processFreeResponse(xmlChar *id,free_response **frs,int *frc,question_header **qhs,int *qc) {
-      id = (char *) id;
+
+      //new context for different node set
+      xmlXPathContext * xpathCtx;
+      xpathCtx = xmlXPathNewContext(doc);
+
       //extract the prompt
-      char questionPromptPath[MAX_XPATH]; 
-      sprintf(questionPromptPath,"//question[@id = '%s']/prompt",id);
-      printf("%s\n",questionPromptPath);
+      xmlChar questionPromptPath[MAX_XPATH]; 
+      xmlStrPrintf(questionPromptPath,MAX_XPATH,"//question[@id = '%s']/prompt",id);
 
       xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
       xmlNodeSet *pnodes = pxoptr->nodesetval;
       xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
 
+
       char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
-      strcpy(prompt,promptXml);
-      printf("prompt %s\n",prompt);
+      strcpy(prompt,(char *)promptXml);
 
       //package into free_response struct
       free_response * fr_question = malloc(sizeof(free_response));
-      fr_question->prompt=prompt;
+      fr_question->prompt = malloc(sizeof(MAX_ACHARS * sizeof(char)));
+      strcpy(fr_question->prompt,prompt);
       //should allow the survey designer the freedom to specify the response length.
       //However it should be constrained by some MACRO max
       fr_question->response = malloc(MAX_ACHARS * sizeof(char)); 
@@ -185,9 +197,8 @@ int main(int argc,char *argv[])
       q_header->type=FR;
       q_header->index=(*qc);
       q_header->tindex=(*frc);
-      strcpy(q_header->question_id,id);
-      qhs[*qc] = q_header;   
-      printf("frc is %d",*frc);
+      strcpy(q_header->question_id,(char *)id);
+      qhs[(*qc)] = q_header;   
       (*qc)++;
       (*frc)++;
       
@@ -195,11 +206,145 @@ int main(int argc,char *argv[])
     }
 
 
-    
-    question_header **question_headers = malloc(sizeof(question_header*));
-    free_response **free_responses = malloc(sizeof(free_response*));
-    select_all **select_alls = malloc(sizeof(select_all*));
-    multiple_choice **multiple_choices = malloc(sizeof(multiple_choice*));
+
+    ////////////////////////////// Multiple Choice PARSER /////////////////////////////////////
+    //mcs multiple_choice pointer array
+    //mcc free response counter
+    //qc question count
+    //qhs question header pointer array
+    void processMultipleChoice(xmlChar *id,multiple_choice **mcs,int *mcc,question_header **qhs,int *qc) {
+
+      //new context for different node set
+      xmlXPathContext * xpathCtx;
+      xpathCtx = xmlXPathNewContext(doc);
+
+      //extract the prompt
+      xmlChar questionPromptPath[MAX_XPATH]; 
+      xmlStrPrintf(questionPromptPath,MAX_XPATH,"//question[@id = '%s']/prompt",id);
+
+      xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
+      xmlNodeSet *pnodes = pxoptr->nodesetval;
+      xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
+
+      char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
+      strcpy(prompt,(char *)promptXml);
+
+      //extract options
+
+      xmlChar multipleChoiceOptionsPath[MAX_XPATH]; 
+      xmlStrPrintf(multipleChoiceOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/answer",id);
+      xmlXPathObject * axoptr = xmlXPathEvalExpression(multipleChoiceOptionsPath,xpathCtx);
+      xmlNodeSet *anodes = axoptr->nodesetval; 
+      int options_size = (anodes) ? anodes->nodeNr : 0;
+      
+      //options
+      char **optionSet = malloc(options_size * sizeof(char *));
+      for ( int j = 0; j < options_size; j++) {
+        xmlNode *dur = anodes->nodeTab[j];
+        char *value  = (char *)xmlNodeGetContent(dur); //shortcut for going to child text and getting its content
+        int optionLength = (int) strlen(value);
+        optionSet[j] = malloc( (optionLength+1) * sizeof(char));
+        strcpy(optionSet[j],value);
+      }
+
+      //package into multiple_choice struct
+
+      multiple_choice *mc_question = malloc(sizeof(multiple_choice));
+      mc_question = malloc(sizeof(multiple_choice));
+      mc_question->prompt = malloc(sizeof(MAX_ACHARS * sizeof(char)));
+      strcpy(mc_question->prompt,prompt);
+      mc_question->options=optionSet; 
+      mc_question->num_options=options_size;
+      mc_question->selected=-1;
+      //multiple_choices[i] = mc_question;
+      mcs[(*mcc)]=mc_question;
+  
+      //package into question_header
+      question_header * q_header = (malloc(sizeof(question_header)));
+      q_header->type=MC;
+      q_header->index=(*qc);
+      q_header->tindex=(*mcc);
+      strcpy(q_header->question_id,(char *)id);
+      //question_headers[i] = q_header;   
+      qhs[(*qc)]=q_header;
+      (*qc)++;
+      (*mcc)++;
+
+  }
+        
+        
+
+
+    //////////////////////// SELECT ALL  PARSER////////////////////////////////////
+    //sas select_all pointer array
+    //sac select_all counter
+    //qc question count
+    //qhs question header pointer array
+    void processSelectAll(xmlChar *id,select_all **sas,int *sac,question_header **qhs,int *qc) {
+      //new context for different node set
+      xmlXPathContext * xpathCtx;
+      xpathCtx = xmlXPathNewContext(doc);
+
+      //extract the prompt
+      xmlChar questionPromptPath[MAX_XPATH]; 
+      xmlStrPrintf(questionPromptPath,MAX_XPATH,"//question[@id = '%s']/prompt",id);
+
+      xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
+      xmlNodeSet *pnodes = pxoptr->nodesetval;
+      xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
+
+      char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
+      strcpy(prompt,(char *)promptXml);
+
+      //extract question info 
+      xmlChar selectAllOptionsPath[MAX_XPATH]; 
+      xmlStrPrintf(selectAllOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/answer",id);
+
+      xmlXPathObject * axoptr = xmlXPathEvalExpression(selectAllOptionsPath,xpathCtx);
+      xmlNodeSet *anodes = axoptr->nodesetval; 
+      int options_size = (anodes) ? anodes->nodeNr : 0;
+      
+      //options
+      char **optionSet = malloc(options_size * sizeof(char *));
+      for ( int j = 0; j < options_size; j++) {
+        xmlNode *dur = anodes->nodeTab[j];
+        char *value  = (char *)xmlNodeGetContent(dur); //shortcut for going to child text and getting its content
+        int optionLength = (int) strlen(value);
+        optionSet[j] = malloc( (optionLength+1) * sizeof(char));
+        strcpy(optionSet[j],value);
+      }
+
+      //package into select all struct
+      select_all * sa_question = malloc(sizeof(select_all));
+      sa_question->prompt = malloc(sizeof(MAX_ACHARS * sizeof(char)));
+      strcpy(sa_question->prompt,prompt);
+      sa_question->options=optionSet; 
+      sa_question->num_options=options_size;
+      sa_question->selected=calloc(options_size,sizeof(int));
+      sas[(*sac)]=sa_question;
+  
+      //package into question_header
+      question_header * q_header = malloc(sizeof(question_header)); 
+      printf("allocated header for select all question header\n");
+      q_header->type=SA;
+      q_header->index=(*qc);
+      q_header->tindex=(*sac);
+      printf("q_header strcpy sa sucess ? : %s\n",(strcpy(q_header->question_id,(char *)id)));
+
+      printf("header type %d\n",q_header->type);
+      qhs[(*qc)]=q_header;
+      (*qc)++;
+      (*sac)++;
+  }
+        
+    //char **words = malloc(sizeof(char*) * 20);
+    //char *words[20];  
+
+    question_header **question_headers = malloc(30*sizeof(question_header*));
+    free_response **free_responses = malloc(30*sizeof(free_response*));
+    select_all **select_alls = malloc(30*sizeof(select_all*));
+    //multiple_choice **multiple_choices = malloc(20 *sizeof(multiple_choice*));
+    multiple_choice **multiple_choices = malloc(30*sizeof(multiple_choice*));
     int free_response_index = 0;
     int select_all_index    = 0;
     int multiple_choice_index = 0;
@@ -209,56 +354,74 @@ int main(int argc,char *argv[])
 
 
     //Iterate Through all question id's
-    const xmlChar* allQuestionIdXPath = "//question/@id";
-    xmlXPathObjectPtr XPathOP = xmlXPathEvalExpression(allQuestionIdXPath,xpathCtx);
+    const xmlChar* allQuestionIdXPath = BAD_CAST "//question/@id";
+    xmlXPathObjectPtr XPathOP = xmlXPathEvalExpression(allQuestionIdXPath,xpathCtxTop);
     xmlNodeSetPtr id_nodes = XPathOP->nodesetval; 
     int question_count = (id_nodes) ? id_nodes->nodeNr : 0;
     printf("found %d questions\n",question_count);
     for (int i = 0; i < question_count; i++) {
       xmlNode *current_id_node = id_nodes->nodeTab[i]; 
-      xmlChar *current_id  = xmlNodeGetContent(current_id_node); 
+
+      xmlChar *current_id = xmlNodeGetContent(current_id_node); 
+      printf("after id extract\n");
+      printf("Question ID : %s\n", (char *) current_id);
       char *question_type = (char*) getQuestionType(current_id);
       printf("Question ID : %s , Type : %s\n", (char *) current_id,question_type);
-
+      
       if (strcmp(question_type,"MC")==0) {
+        printf("found multiple choice\n");
+        processMultipleChoice(current_id,multiple_choices,&multiple_choice_index,
+          question_headers,&question_index);
+        printf("where am i\n");
 
       } else if (strcmp(question_type,"SA")==0) {
-
+        printf("found select all\n");
+        processSelectAll(current_id,select_alls,&select_all_index,
+          question_headers,&question_index); 
+        printf("where am i 2\n");
       
       } else if (strcmp(question_type,"FR")==0) {
-        printf("found free response");
+        printf("found free response\n");
         processFreeResponse(current_id,free_responses,&free_response_index,
           question_headers,&question_index); 
+        printf("where am i 3\n");
       
       } else if (strcmp(question_type,"SC")==0) {
 
       } else {
-        printf("Unkown question type %s, not known to schema",question_type);
+        printf("Unkown question type %s, not known to schema\n",question_type);
         exit(0);
       }
-
       
     }
 
-    //test that packaging was correct
-    printf("mc structure test\n"); 
-    for ( int i = 0; i < multiple_choice_index; i++) {
-      multiple_choice *mc = multiple_choices[i];
-      printf("\n%d %s\n",i,mc->prompt);
-      for (int j = 0; j < mc->num_options; j++) {
-        printf("%s\t",mc->options[j]);
-      }
+    printf("\n\n\n\n testing packaging\n");
+  
+    void print_multiple_choice(int mc_index) {
+        multiple_choice *mc = multiple_choices[mc_index];
+        printf("\t%s\n",mc->prompt);
+        for (int j = 0; j < mc->num_options; j++) {
+          printf("\t\t%s\n",mc->options[j]);
+          if ( j == mc->num_options-1) { printf("\n"); }
+        }
     }
 
-    //test that packaging was correct
-    printf("fr structure test\n"); 
-    printf("fr index %d\n",free_response_index);
-    for ( int i = 0; i < free_response_index; i++) {
-      free_response *fr = free_responses[i];
-      printf("\n%s\n",fr->prompt);
+    void print_select_all(int sa_index) {
+        select_all *sa = select_alls[sa_index];
+        printf("\t%s\n",sa->prompt);
+        for (int j = 0; j < sa->num_options; j++) {
+          printf("\t\t%s\n",sa->options[j]);
+          if ( j == sa->num_options-1) { printf("\n"); }
+        }
     }
 
-    printf("sa structure test\n"); 
+
+    void print_free_response(int fr_index) {
+      free_response *fr = free_responses[fr_index];
+      printf("\t%s\n",fr->prompt);
+    }
+
+    /*
     for ( int i = 0; i < select_all_index; i++) {
       select_all *sa = select_alls[i];
       printf("\n%s\n",sa->prompt);
@@ -270,288 +433,33 @@ int main(int argc,char *argv[])
         printf("%d",sa->selected[i]);
       }
     }
+    */
 
-    printf("\n question header test \n");
+    printf("mc  : %d questions \n",multiple_choice_index); 
+    printf("fr  : %d questions \n",free_response_index); 
+    printf("sa  : %d questions \n",select_all_index); 
+    printf("\n question header test : %d question headers \n",question_index);
     for ( int i = 0; i < question_index; i++) {
       question_header *qh = question_headers[i];
       printf("\nType %d\n",qh->type);
       printf("\nQuestion Index %d\n",qh->index);
       printf("\nType Index %d\n",qh->tindex);
       printf("\nID%s\n",qh->question_id);
+        switch(qh->type) {
+          case  MC : 
+            print_multiple_choice(qh->tindex); 
+            break;
+          case  FR : 
+            print_free_response(qh->tindex); 
+            break;
+          case  SA : 
+            print_select_all(qh->tindex); 
+            break;
+          case  SC : 
+            break;
+        }
     }
 
-
-
-    
-    exit(0);
-
-
-
-
-    //REFACTOR BELOW TO FUNCTION LIKE ABOVE FOR MC
-
-    /*
-    //////////////////////// MULTIPLE CHOICE////////////////////////////////////
-
-    //How many multiple-choice questions are there?
-    const xmlChar* multipleChoicePath = "//question/multipleChoice/exclusive"
-      "[text() = '1']/ancestor::question";  //string literal continuation syntax
-    xoptr = xmlXPathEvalExpression(multipleChoicePath,xpathCtx);
-    nodes = xoptr->nodesetval; 
-    size = (nodes) ? nodes->nodeNr : 0;
-
-    multiple_choice **multiple_choices = malloc(sizeof(multiple_choice*));
-    printf("found %d multiple chocie\n",size);
-
-
-    //loop through each multiple choice question 
-    if (size != 0) {
-      for ( int i = 0; i < size; i++) {
-        cur = nodes->nodeTab[i]; //mc node set
-        xmlChar * xid = getIdAttr(cur);  
-        if(!xid || strlen((char *) xid)==0) {
-          printf("id not found\n");
-          exit(98);
-        }
-
-        char *id = (char *) xid;
-        printf("found id %s\n" , id);
-
-        //extract question info 
-        char multipleChoiceAnswerPath[MAX_XPATH]; //should replace with maxquery macro
-        sprintf(multipleChoiceAnswerPath,"//question[@id = '%s']/multipleChoice/answer",(char *) xid);
-        printf("%s\n",multipleChoiceAnswerPath);
-
-        xmlXPathObject * axoptr = xmlXPathEvalExpression(multipleChoiceAnswerPath,xpathCtx);
-        xmlNodeSet *anodes = axoptr->nodesetval; 
-        int options_size = (anodes) ? anodes->nodeNr : 0;
-        
-        //options
-        char **optionSet = malloc(options_size * sizeof(char *));
-        printf("%d answers found\n",options_size);
-        for ( int j = 0; j < options_size; j++) {
-          xmlNode *dur = anodes->nodeTab[j];
-          char *value  = (char *)xmlNodeGetContent(dur); //shortcut for going to child text and getting its content
-          printf("found option  %s\n",value);
-          int optionLength = (int) strlen(value);
-          printf("length %ld\n",strlen(value));
-          optionSet[j] = malloc( (optionLength+1) * sizeof(char));
-          strcpy(optionSet[j],value);
-        }
-
-        //extract the prompt
-        char questionPromptPath[MAX_XPATH]; 
-        sprintf(questionPromptPath,"//question[@id = '%s']/prompt",(char *) xid);
-        printf("%s\n",questionPromptPath);
-
-        xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
-        xmlNodeSet *pnodes = pxoptr->nodesetval;
-        xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
-
-        char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
-        strcpy(prompt,promptXml);
-        printf("prompt %s\n",prompt);
-
-        //package into multiple_choice struct
-        multiple_choice * mc_question = malloc(sizeof(multiple_choice));
-        mc_question->prompt=prompt;
-        mc_question->options=optionSet; 
-        mc_question->num_options=options_size;
-        mc_question->selected=-1;
-        multiple_choices[i] = mc_question;
-    
-        //package into question_header
-        question_header * q_header = (malloc(sizeof(question_header)));
-        q_header->type=MC;
-        q_header->index=current_question;
-        q_header->tindex=i;
-        strcpy(q_header->question_id,id);
-        question_headers[i] = q_header;   
-        
-        
-        //increment total question count 
-        current_question++; 
-      }
-    }
-    */
-
-
-
-    //////////////////////// SELECT ALL ////////////////////////////////////
-    /*
-    //How many select all questions are there?
-    const xmlChar* selectAllPath = "//question/multipleChoice/exclusive"
-      "[text() = '0']/ancestor::question";  //string literal continuation syntax
-    xoptr = xmlXPathEvalExpression(selectAllPath,xpathCtx);
-    nodes = xoptr->nodesetval; 
-    size = (nodes) ? nodes->nodeNr : 0;
-
-    select_all **select_alls = malloc(sizeof(select_all*));
-    printf("found %d select all\n",size);
-
-
-    //loop through each select all question 
-    if (size != 0) {
-      for ( int i = 0; i < size; i++) {
-        cur = nodes->nodeTab[i]; //sa node set
-        xmlChar * xid = getIdAttr(cur);  
-        if(!xid || strlen((char *) xid)==0) {
-          printf("id not found\n");
-          exit(98);
-        }
-
-        char *id = (char *) xid;
-        printf("found id %s\n" , id);
-
-        //extract question info 
-        char selectAllAnswerPath[MAX_XPATH]; //should replace with maxquery macro
-        sprintf(selectAllAnswerPath,"//question[@id = '%s']/multipleChoice/answer",(char *) xid);
-        printf("%s\n",selectAllAnswerPath);
-
-        xmlXPathObject * axoptr = xmlXPathEvalExpression(selectAllAnswerPath,xpathCtx);
-        xmlNodeSet *anodes = axoptr->nodesetval; 
-        int options_size = (anodes) ? anodes->nodeNr : 0;
-        
-        //options
-        char **optionSet = malloc(options_size * sizeof(char *));
-        printf("%d answers found\n",options_size);
-        for ( int j = 0; j < options_size; j++) {
-          xmlNode *dur = anodes->nodeTab[j];
-          char *value  = (char *)xmlNodeGetContent(dur); //shortcut for going to child text and getting its content
-          printf("found option  %s\n",value);
-          int optionLength = (int) strlen(value);
-          printf("length %ld\n",strlen(value));
-          optionSet[j] = malloc( (optionLength+1) * sizeof(char));
-          strcpy(optionSet[j],value);
-        }
-
-        //extract the prompt
-        char questionPromptPath[MAX_XPATH]; 
-        sprintf(questionPromptPath,"//question[@id = '%s']/prompt",(char *) xid);
-        printf("%s\n",questionPromptPath);
-
-        xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
-        xmlNodeSet *pnodes = pxoptr->nodesetval;
-        xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
-
-        char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
-        strcpy(prompt,promptXml);
-        printf("prompt %s\n",prompt);
-
-        //package into select all struct
-        select_all * sa_question = malloc(sizeof(select_all));
-        sa_question->prompt=prompt;
-        sa_question->options=optionSet; 
-        sa_question->num_options=options_size;
-        sa_question->selected=calloc(options_size,sizeof(int));
-        select_alls[i] = sa_question;
-    
-        //package into question_header
-        question_header * q_header = malloc(sizeof(question_header)); 
-        q_header->type=SA;
-        q_header->index=current_question;
-        q_header->tindex=i;
-        strcpy(q_header->question_id,id);
-        question_headers[i] = q_header;   
-        
-        
-        //increment total question count 
-        current_question++; 
-      }
-    }
-    */
-
-
-
-
-
-    
-    ////////////////////////////// FREE RESPONSE /////////////////////////////////////
-    /* 
-    //How many free response questions are there?
-    const xmlChar* freeResponsePath = "//question/freeResponse/ancestor::question";
-    xoptr = xmlXPathEvalExpression(freeResponsePath,xpathCtx);
-    nodes = xoptr->nodesetval; 
-    size = (nodes) ? nodes->nodeNr : 0;
-
-    free_response **free_responses = malloc(sizeof(free_response*));
-    printf("found %d free response\n",size);
-
-
-    //loop through each free response question 
-    if (size != 0) {
-      for ( int i = 0; i < size; i++) {
-        cur = nodes->nodeTab[i]; //fr node set
-        xmlChar * xid = getIdAttr(cur);  
-        if(!xid || strlen((char *) xid)==0) {
-          printf("id not found\n");
-          exit(98);
-        }
-
-        char *id = (char *) xid;
-        printf("found id %s\n" , id);
-
-        //extract the prompt
-        char questionPromptPath[MAX_XPATH]; 
-        sprintf(questionPromptPath,"//question[@id = '%s']/prompt",(char *) xid);
-        printf("%s\n",questionPromptPath);
-
-        xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
-        xmlNodeSet *pnodes = pxoptr->nodesetval;
-        xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
-
-        char *prompt = malloc( strlen((char *)promptXml) * sizeof (char));
-        strcpy(prompt,promptXml);
-        printf("prompt %s\n",prompt);
-
-        //package into free_response struct
-        free_response * fr_question = malloc(sizeof(free_response));
-        fr_question->prompt=prompt;
-        //should allow the survey designer the freedom to specify the response length.
-        //However it should be constrained by some MACRO max
-        fr_question->response = malloc(MAX_ACHARS * sizeof(char)); 
-        free_responses[i] = fr_question;
-    
-        //package into question_header
-        question_header * q_header = (malloc(sizeof(question_header)));
-        q_header->type=FR;
-        q_header->index=current_question;
-        q_header->tindex=i;
-        strcpy(q_header->question_id,id);
-        question_headers[i] = q_header;   
-        
-        
-        //increment total question count 
-        current_question++; 
-      }
-    }
-  */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    ////////////////
-    //SA 
-    /*
-    const xmlChar* selectAllPath = "//question/multipleChoice/exclusive[text() = '0']/ancestor::question";
-    xoptr = xmlXPathEvalExpression(selectAllPath,xpathCtx);
-    nodes = xoptr->nodesetval; 
-    size = (nodes) ? nodes->nodeNr : 0;
-    select_all *select_alls = malloc(size * sizeof(select_all));
-    printf("found %d select all\n",size);
-    */
-   
 
     ///////////////
     //SC
@@ -563,10 +471,6 @@ int main(int argc,char *argv[])
     scale_choice *scale_choices = malloc(size * sizeof(scale_choice));
     printf("found %d scale choice\n",size);
     */
-   
-
-    
-
 
     //This will free the entire document tree in memory, so any 
     //pointers to it will become unreliable
@@ -574,10 +478,19 @@ int main(int argc,char *argv[])
     //for now i have too many pointers to it, it's a refactor for the future
     //xmlFreeDoc(doc);
 
+    
     exit(0);
 
 
-    //get time info
+
+    //remove later ...
+    char questions[MAX_QS][MAX_QCHARS+1] = {{'\0'}};
+    char answers[MAX_QS][MAX_ACHARS+1] = {{'\0'}};
+    int nq = 0;
+
+    /////////////////
+    // META DATA
+    //////////////////
     time_t t;
     struct tm *start_time;
     time(&t);
@@ -698,7 +611,6 @@ int main(int argc,char *argv[])
 
     //DEBUG BUFFER
     int dby = BORDER+pad_view_height+1;
-    int dbx = 0;
     mvprintw(dby,0,"vqs is %d",vqs); //debug output
 
     //DEBUG PAD BORDER
@@ -816,7 +728,7 @@ int main(int argc,char *argv[])
 
     printf("opening %s for writing\n",path);
     FILE *fprt; //should be checking if this is a valid pointer
-    if (fprt = fopen(path,"w")) {
+    if ((fprt = fopen(path,"w"))) {
       for ( int i = 0; i < nq; i++) {
         fprintf(fprt,"%s\n",answers[i]);
       } 
@@ -835,7 +747,7 @@ int main(int argc,char *argv[])
 //have a special process for backspace and clear
 //WARNING! not checking for buffer overflow
 void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
-  int charCount = 0;
+  //int charCount = 0;
   int end = 0;
   int charPos = 0;
   int ok = 1;
@@ -916,16 +828,8 @@ void clearField(struct survey_pad *spad,int selectIndex,char answer[]) {
   for ( int i = 0; i < MAX_QCHARS; i++) {
     mvwaddch(spad->pad,(selectIndex*QSPACE),spad->padc_off+MAX_QCHARS+i,' ');
   }
-  wattron(spad->pad,COLOR_PAIR(1));
+  wattron(spad->pad,COLOR_PAIR(last));
 }
-
-
-
-
-
-
-
-
 
 
 void forceQuit(void) {
