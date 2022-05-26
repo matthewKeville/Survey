@@ -46,7 +46,7 @@
    <xs:complexType>
      <xs:sequence>
        <xs:element name="exclusive"/> <!-- select all or multiple choice -->
-       <xs:element name="answer" minOccurs="2" maxOccurs="4"/>
+       <xs:element name="answer" minOccurs="2" maxOccurs="8"/>
      </xs:sequence>
    </xs:complexType>
  </xs:element>

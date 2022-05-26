@@ -1,22 +1,27 @@
+//this mixing of pointers and actual types
+//seems messy, do people usually keep a consistent method?
 
 typedef struct {
   char *prompt;
   char *response;
 } free_response;
 
+//seems like a waste of space for
+//selected ...
+
 typedef struct {
   char *prompt;
   char **options;
   int  num_options;
-  int selected;
+  int  selected;
 } multiple_choice;
 
 
 typedef struct {
   char *prompt;
-  char *options;
+  char **options;
   int  num_options;
-  int *selected;
+  int  *selected; //int array with num_options ints
 } select_all;
 
 typedef struct {
