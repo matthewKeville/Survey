@@ -101,8 +101,6 @@ int main(int argc,char *argv[])
     // PARSE XML
     /////////////////////////
 
-    //How many questions are there?
-
     xmlXPathContext* xpathCtx;
     xpathCtx = xmlXPathNewContext(doc);
 
@@ -270,31 +268,22 @@ int main(int argc,char *argv[])
     //query for amount of each question type
     ///////////////////////////////////////// 
   
-    void getCount(const xmlChar* query,int* count_holder) {
+    int getCount(const xmlChar* query) {
       xmlXPathObjectPtr XPathOP = malloc(sizeof(xmlXPathObject));
       XPathOP = xmlXPathEvalExpression(query,xpathCtx);
-      *count_holder = (XPathOP->nodesetval) ? XPathOP->nodesetval->nodeNr : 0;
-      printf("found %d questions\n",*count_holder);
+      int x = (XPathOP->nodesetval) ? XPathOP->nodesetval->nodeNr : 0;
+      printf("found %d questions\n",x);
       free(XPathOP);
+      return x;
     }
 
-    const xmlChar* multipleChoiceXPath = BAD_CAST "//question/questionType[text()='MC']";
-    const xmlChar* selectAllXPath = BAD_CAST      "//question/questionType[text()='SA']";
-    const xmlChar* freeResponseXPath = BAD_CAST   "//question/questionType[text()='FR']";
-    const xmlChar* scaleChoiceXPath = BAD_CAST    "//question/questionType[text()='SC']";
-
-    int multiple_choice_count = 0;
-    int select_all_count      = 0;
-    int free_response_count   = 0;
-    int scale_choice_count    = 0;
-
-    getCount(multipleChoiceXPath,&multiple_choice_count);
-    getCount(selectAllXPath,&select_all_count);
-    getCount(freeResponseXPath,&free_response_count);
-    getCount(scaleChoiceXPath,&scale_choice_count);
+    int multiple_choice_count = getCount(BAD_CAST "//question/questionType[text()='MC']");
+    int select_all_count      = getCount(BAD_CAST "//question/questionType[text()='SA']");
+    int free_response_count   = getCount(BAD_CAST "//question/questionType[text()='FR']");
+    int scale_choice_count    = getCount(BAD_CAST "//question/questionType[text()='SC']");
 
     int total_count           = multiple_choice_count + select_all_count +
-      free_response_count + scale_choice_count;
+                                free_response_count + scale_choice_count;
 
 
 
