@@ -269,6 +269,33 @@ int main(int argc,char *argv[])
     /////////////////////////////////////////
     //query for amount of each question type
     ///////////////////////////////////////// 
+  
+    void getCount(const xmlChar* query,int* count_holder) {
+      xmlXPathObjectPtr XPathOP = malloc(sizeof(xmlXPathObject));
+      XPathOP = xmlXPathEvalExpression(query,xpathCtx);
+      *count_holder = (XPathOP->nodesetval) ? XPathOP->nodesetval->nodeNr : 0;
+      printf("found %d questions\n",*count_holder);
+      free(XPathOP);
+    }
+
+    const xmlChar* multipleChoiceXPath = BAD_CAST "//question/questionType[text()='MC']";
+    const xmlChar* selectAllXPath = BAD_CAST      "//question/questionType[text()='SA']";
+    const xmlChar* freeResponseXPath = BAD_CAST   "//question/questionType[text()='FR']";
+    const xmlChar* scaleChoiceXPath = BAD_CAST    "//question/questionType[text()='SC']";
+
+    int multiple_choice_count = 0;
+    int select_all_count      = 0;
+    int free_response_count   = 0;
+    int scale_choice_count    = 0;
+
+    getCount(multipleChoiceXPath,&multiple_choice_count);
+    getCount(selectAllXPath,&select_all_count);
+    getCount(freeResponseXPath,&free_response_count);
+    getCount(scaleChoiceXPath,&scale_choice_count);
+
+    int total_count           = multiple_choice_count + select_all_count +
+      free_response_count + scale_choice_count;
+
 
 
     /////////////////////////////////////////
@@ -282,10 +309,11 @@ int main(int argc,char *argv[])
         meanwhile question_count is an actual count
     */
 
-    question_header **question_headers = malloc(30*sizeof(question_header*));
-    free_response **free_responses = malloc(30*sizeof(free_response*));
-    select_all **select_alls = malloc(30*sizeof(select_all*));
-    multiple_choice **multiple_choices = malloc(30*sizeof(multiple_choice*));
+    question_header **question_headers = malloc(total_count*sizeof(question_header*));
+    free_response **free_responses = malloc(free_response_count*sizeof(free_response*));
+    select_all **select_alls = malloc(select_all_count*sizeof(select_all*));
+    multiple_choice **multiple_choices = malloc(multiple_choice_count*sizeof(multiple_choice*));
+    scale_choice **scale_choices = malloc(scale_choice_count*sizeof(scale_choice*));
 
     int free_response_index = 0;
     int select_all_index    = 0;
