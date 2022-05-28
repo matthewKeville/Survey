@@ -93,7 +93,7 @@
  <xs:element name="scaleChoice">
    <xs:complexType>
      <xs:sequence>
-       <xs:element name="min" type="xs:integer"/>
+       <xs:element name="min" type="xs:integer"/> <!-- todo : restrict min/max to 2 digit numbers -->
        <xs:element name="max" type="xs:integer"/> <!-- Unfortunately I can't validate min/max/step/start consistency -->
        <xs:element name="step" type="xs:integer"/>
        <xs:element name="start" type="xs:integer"/>

@@ -3,8 +3,8 @@
   <title>Sample Quiz</title>
   <author>Matthew Keville</author>
 
-  <question id="q000">
-    <prompt>Which is the best number?</prompt>
+  <question id="q0">
+    <prompt>On a scale of 1-10 how much energy do you have right now?</prompt>
     <questionType>SC</questionType>
       <scaleChoice>
         <min>0</min>
@@ -14,9 +14,9 @@
       </scaleChoice>
   </question>
 
-  <question id="q123">
+  <question id="q1">
     <prompt>Which of the following did you do yesterday?</prompt>
-    <questionType>MC</questionType>
+    <questionType>SA</questionType>
     <multipleChoice>
       <option>Clean your room?</option>
       <option>Workout?</option>
@@ -25,109 +25,26 @@
     </multipleChoice>
   </question>
 
-  <question id="q80">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-    </multipleChoice>
-  </question>
 
-  <question id="q81">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-    </multipleChoice>
+  <question id="q2">
+    <prompt>Who was the last person you hung out with?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse maxLength="200"/>
   </question>
-
-  <question id="q82">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-    </multipleChoice>
-  </question>
-
 
   <question id="q3">
-    <prompt>How are you feeling right now?</prompt>
-    <questionType>FR</questionType>
-    <freeResponse maxLength="200"/>
-  </question>
-
-  <question id="q322">
-    <prompt>How are you feeling right now?</prompt>
-    <questionType>FR</questionType>
-    <freeResponse maxLength="200"/>
-  </question>
-
-  <question id="q333">
-    <prompt>How are you feeling right now?</prompt>
-    <questionType>FR</questionType>
-    <freeResponse maxLength="100"/>
-  </question>
-
-
-
-  <question id="q8">
-    <prompt>dummy question?</prompt>
+    <prompt>What sounds the most appealing right now?</prompt>
     <questionType>MC</questionType>
     <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
+      <option>Going out to drink</option>
+      <option>Taking a fat nap</option>
+      <option>Playing a video game</option>
+      <option>Cuddling up with a good book</option>
     </multipleChoice>
   </question>
 
 
 
-  <question id="q89">
-    <prompt>barby</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-    </multipleChoice>
-  </question>
-
-
-  <question id="q83">
-    <prompt>barby</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-    </multipleChoice>
-  </question>
-
-  <question id="q85">
-    <prompt>barby</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <option>yes?</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-      <option>no?</option>
-      <option>maybe</option>
-      <option>...</option>
-    </multipleChoice>
-  </question>
 
 
 

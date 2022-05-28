@@ -278,7 +278,7 @@ int main(int argc,char *argv[])
     //scc : scale_choice counter
     //qc  : question count
     //qhs : question header pointer array
-    void processScaleChoice(xmlChar *id,scale_choice **srs,int *src,question_header **qhs,int *qc) {
+    void processScaleChoice(xmlChar *id,scale_choice **scs,int *scc,question_header **qhs,int *qc) {
 
       //extract the prompt
       xmlChar questionPromptPath[MAX_XPATH]; 
@@ -296,99 +296,49 @@ int main(int argc,char *argv[])
 
       //extract question info 
       xmlChar scaleChoicePath[MAX_XPATH]; 
-      xmlStrPrintf(scaleChoicePath,MAX_XPATH,"//question[@id = '%s']/scaleChoice",id);
+      xmlStrPrintf(scaleChoicePath,MAX_XPATH,"//question[@id = '%s']/scaleChoice/*",id);
 
       xmlXPathObject * axoptr = xmlXPathEvalExpression(scaleChoicePath,xpathCtx);
       xmlNodeSet *anodes = axoptr->nodesetval; 
-      int options_size = (anodes) ? anodes->nodeNr : 0;
-
 
       scale_choice * sc_question = malloc(sizeof(scale_choice));
       sc_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); 
       strcpy(sc_question->prompt,prompt);
 
-      
       //scale variables | This assumes the order min , max , step , start | current version of schema.xsd
 
-      //xmlChar * -> int is troublesome..
-      //https://mail.gnome.org/archives/xml/2003-April/msg00060.html
-      //atoi expects null terminated char array, but xmlNodeGetContent does not return a string
-      //i need to add the null byte to the string before calling atoi ...
+      printf("base nodes has : %d", anodes->nodeNr);
 
+      //min 
       xmlNode *dur = anodes->nodeTab[0];
-      char *value  = (char *)xmlNodeGetContent(dur); 
-      int len = strlen(value);
-      char *min_chars = malloc((len+1)*sizeof(char));
-      strcpy(min_chars,value);
-      min_chars[len]='\0';
-      sc_question->min=atoi(min_chars);
-
+      xmlChar *value  = xmlNodeGetContent(dur); 
+      sc_question->min=atoi((char *)value);
+      //max
       dur = anodes->nodeTab[1];
-      value  = (char *)xmlNodeGetContent(dur); 
-      len = strlen(value);
-      min_chars = malloc((len+1)*sizeof(char));
-      strcpy(min_chars,value);
-      min_chars[len]='\0';
-      sc_question->max=atoi(min_chars);
-
+      value  = xmlNodeGetContent(dur); 
+      sc_question->max=atoi((char *)value);
+      //step
       dur = anodes->nodeTab[2];
-      value  = (char *)xmlNodeGetContent(dur); 
-      len = strlen(value);
-      min_chars = malloc((len+1)*sizeof(char));
-      strcpy(min_chars,value);
-      min_chars[len]='\0';
-      sc_question->step=atoi(min_chars);
-
+      value  = xmlNodeGetContent(dur); 
+      sc_question->step=atoi((char *)value);
+      //start
       dur = anodes->nodeTab[3];
-      value  = (char *)xmlNodeGetContent(dur); 
-      len = strlen(value);
-      min_chars = malloc((len+1)*sizeof(char));
-      strcpy(min_chars,value);
-      min_chars[len]='\0';
-      sc_question->start=atoi(min_chars);
+      value  = xmlNodeGetContent(dur); 
+      sc_question->start=atoi((char *)value);
+      //selected
+      sc_question->selected=sc_question->start;
 
-      
-      /*
-      dur = anodes->nodeTab[1];
-      char *value2  = (char *)xmlNodeGetContent(dur); 
-      sc_question->max=atoi(value2);
-      dur = anodes->nodeTab[2];
-      char *value3  = (char *)xmlNodeGetContent(dur); 
-      sc_question->step=atoi(value3);
-      dur = anodes->nodeTab[3];
-      char *value4  = (char *)xmlNodeGetContent(dur); 
-      sc_question->start=atoi(value4);
-      */
-
-      scale_choice* s = sc_question;
-      printf(" %d %d %d %d ",s->min,s->max,s->start,s->step);
-      /*
-      printf(" %s %s %s %s ",value,value2,value3,value4);
-      */
-
-      exit(0);
-
-
-      //package into select all struct
-      /*
-      select_all * sa_question = malloc(sizeof(select_all));
-      sa_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
-      strcpy(sa_question->prompt,prompt);
-      sa_question->options=optionSet; 
-      sa_question->num_options=options_size;
-      sa_question->selected=calloc(options_size,sizeof(int));
-      sas[(*sac)]=sa_question;
+      scs[(*scc)]=sc_question;
   
       //package into question_header
       question_header * q_header = malloc(sizeof(question_header)); 
-      q_header->type=SA;
+      q_header->type=SC;
       q_header->index=(*qc);
-      q_header->tindex=(*sac);
+      q_header->tindex=(*scc);
 
       qhs[(*qc)]=q_header;
       (*qc)++;
-      (*sac)++;
-      */
+      (*scc)++;
   }
 
 
@@ -409,7 +359,7 @@ int main(int argc,char *argv[])
     int multiple_choice_count = getCount(BAD_CAST "//question/questionType[text()='MC']");
     int select_all_count      = getCount(BAD_CAST "//question/questionType[text()='SA']");
     int free_response_count   = getCount(BAD_CAST "//question/questionType[text()='FR']");
-    int scale_choice_count    = 0;   //getCount(BAD_CAST "//question/questionType[text()='SC']");
+    int scale_choice_count    = getCount(BAD_CAST "//question/questionType[text()='SC']");
 
     total_question_count           = multiple_choice_count + select_all_count +
                                 free_response_count + scale_choice_count;
@@ -502,20 +452,17 @@ int main(int argc,char *argv[])
       free_response *fr = free_responses[fr_index];
       printf("\t%s\n",fr->prompt);
     }
-
-    /*
-    for ( int i = 0; i < select_all_index; i++) {
-      select_all *sa = select_alls[i];
-      printf("\n%s\n",sa->prompt);
-      for (int j = 0; j < sa->num_options; j++) {
-        printf("%s\t",sa->options[j]);
-      } 
-      printf("\n Selected : ");
-      for ( int j = 0; j < sa->num_options; j++) {
-        printf("%d",sa->selected[i]);
-      }
+   
+    void print_scale_choice(int sc_index) {
+      scale_choice *sc = scale_choices[sc_index];
+      printf("\t%s\n",sc->prompt);
+      printf("\t\t%d\n",sc->min);
+      printf("\t\t%d\n",sc->max);
+      printf("\t\t%d\n",sc->step);
+      printf("\t\t%d\n",sc->start);
+      printf("\t\t%d\n",sc->selected);
     }
-    */
+
 
     printf("mc  : %d questions \n",multiple_choice_index); 
     printf("fr  : %d questions \n",free_response_index); 
@@ -536,6 +483,7 @@ int main(int argc,char *argv[])
             print_select_all(qh->tindex); 
             break;
           case  SC : 
+            print_scale_choice(qh->tindex);
             break;
         }
     }
@@ -618,9 +566,9 @@ int main(int argc,char *argv[])
     char submit_key_string[] = "F1";  //Survey submission key
  
     //Write Survey Banner
-    addstr("Daily Survey\n");
+    mvprintw(0,0,"Daily Survey");
     //Submission info
-    mvprintw(0,0,"PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
+    mvprintw(1,0,"PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
     refresh(); 
 
 
@@ -660,8 +608,8 @@ int main(int argc,char *argv[])
           break;
         case SC :;
           question_y[i]=prev_question_end; 
-          //scale_choice* sc = scale_choices[qh->tindex];
-          //prev_question_end += 3;
+          scale_choice* sc = scale_choices[qh->tindex];
+          prev_question_end += draw_scale_choice(sc,prev_question_end);
           break;
         default :
           //prev_question_end += 3;
@@ -962,6 +910,43 @@ int draw_select_all(select_all *sa,int start_y) {
   return (r+start_y+1);
 
 }
+
+
+//draw a scale choice question and return how many lines it took up
+//@sc      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int draw_scale_choice(scale_choice *sc,int start_y) {
+ 
+  wattron(pad,COLOR_PAIR(1));
+  int i = 0;
+  int c = 0;
+  int r = 0;
+  //question
+  while ( i < strlen(sc->prompt)) {
+    if ((c % QUESTION_BUFFER_WIDTH) != QUESTION_BUFFER_WIDTH-1 ) {
+      mvwaddch(pad,start_y+r,c,(sc->prompt)[i]);
+      c++;
+    } else {
+      c = 0; 
+      r++;
+    }
+    i++;
+  }
+
+  c+=2; //pad prompt and question
+
+  //not accurately assessing end of question , since 
+  //character wrap is possible below
+
+  // TODO: need to count digit strlen to make sure that this
+  // gets printed on the same line
+  mvwprintw(pad,start_y+r,c,"[%d]",sc->selected);
+  r+=QUESTION_PAD;
+  return (r+start_y+1);
+
+}
+
 
 
 
