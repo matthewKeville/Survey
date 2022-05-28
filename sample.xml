@@ -3,27 +3,44 @@
   <title>Sample Quiz</title>
   <author>Matthew Keville</author>
 
-  <question id="q236">
-    <prompt>bats??</prompt>
-    <questionType>SA</questionType>
+  <question id="q123">
+    <prompt>Which of the following did you do yesterday?</prompt>
+    <questionType>MC</questionType>
     <multipleChoice>
-      <answer>Basdfad</answer>
-      <answer>foor</answer>
-      <answer>Gasdf</answer>
-      <answer>Greatr</answer>
+      <option>Clean your room?</option>
+      <option>Workout?</option>
+      <option>Cook food?</option>
+      <option>Play Guitar?</option>
     </multipleChoice>
   </question>
 
-  <question id="q26">
-    <prompt>Iyotr??</prompt>
-    <questionType>SA</questionType>
+  <question id="q80">
+    <prompt>dummy question?</prompt>
+    <questionType>MC</questionType>
     <multipleChoice>
-      <answer>abc</answer>
-      <answer>dog</answer>
-      <answer>mouse</answer>
-      <answer>cat</answer>
+      <option>yes?</option>
+      <option>no?</option>
     </multipleChoice>
   </question>
+
+  <question id="q81">
+    <prompt>dummy question?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>yes?</option>
+      <option>no?</option>
+    </multipleChoice>
+  </question>
+
+  <question id="q82">
+    <prompt>dummy question?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>yes?</option>
+      <option>no?</option>
+    </multipleChoice>
+  </question>
+
 
   <question id="q3">
     <prompt>How are you feeling right now?</prompt>
@@ -31,66 +48,76 @@
     <freeResponse/>
   </question>
 
+  <question id="q322">
+    <prompt>How are you feeling right now?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse/>
+  </question>
 
-  <question id="q123">
-    <prompt>Which of the following did you do yesterday?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <answer>Clean your room?</answer>
-      <answer>Workout?</answer>
-      <answer>Cook food?</answer>
-      <answer>Play Guitar?</answer>
-    </multipleChoice>
+  <question id="q333">
+    <prompt>How are you feeling right now?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse/>
   </question>
 
 
-
-  <question id="q80">
-    <prompt>dummy question?</prompt>
-    <questionType>MC</questionType>
-    <multipleChoice>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-    </multipleChoice>
-  </question>
 
   <question id="q8">
     <prompt>dummy question?</prompt>
     <questionType>MC</questionType>
     <multipleChoice>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
+      <option>yes?</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
     </multipleChoice>
   </question>
 
 
 
-  <question id="q82">
+  <question id="q89">
     <prompt>barby</prompt>
     <questionType>MC</questionType>
     <multipleChoice>
-      <answer>yes?</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
-      <answer>no?</answer>
-      <answer>maybe</answer>
-      <answer>...</answer>
+      <option>yes?</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
     </multipleChoice>
   </question>
 
-  <question id="q206">
-    <prompt>Glorb??</prompt>
-    <questionType>SA</questionType>
+
+  <question id="q83">
+    <prompt>barby</prompt>
+    <questionType>MC</questionType>
     <multipleChoice>
-      <answer>Bad</answer>
-      <answer>Okay</answer>
-      <answer>Good</answer>
-      <answer>Great</answer>
+      <option>yes?</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
     </multipleChoice>
   </question>
+
+  <question id="q85">
+    <prompt>barby</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>yes?</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
+      <option>no?</option>
+      <option>maybe</option>
+      <option>...</option>
+    </multipleChoice>
+  </question>
+
 
 
 <!--

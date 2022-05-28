@@ -25,7 +25,6 @@
              <xs:element ref="scaleChoice"/>
            </xs:choice>
         </xs:sequence>
-      <!--<xs:attribute name="id" type="xs:ID" use="required"/>-->
       <xs:attribute ref="id" use="required"/>
     </xs:complexType>
   </xs:element>
@@ -42,16 +41,42 @@
     </xs:simpleType>
   </xs:element>
 
+<!-- Multiple choice / select all have limited options -->
  <xs:element name="multipleChoice">
    <xs:complexType>
      <xs:sequence>
-       <xs:element name="answer" minOccurs="2" maxOccurs="8"/>
+       <xs:element ref="option" minOccurs="2" maxOccurs="10"/>
      </xs:sequence>
    </xs:complexType>
  </xs:element>
 
+
+           <!--
+           <xs:element name="answer" minOccurs="2" maxOccurs="10"/>
+           -->
+
+
  <xs:element name="freeResponse">
  </xs:element>
+
+<!-- Prompts can have no more than 300 characters -->
+ <xs:element name="prompt">
+   <xs:simpleType>
+     <xs:restriction base="xs:string">
+       <xs:maxLength value="300"/>
+     </xs:restriction>
+   </xs:simpleType>
+ </xs:element>
+
+ <xs:element name="option">
+   <xs:simpleType>
+     <xs:restriction base="xs:string">
+       <xs:maxLength value="30"/>
+     </xs:restriction>
+   </xs:simpleType>
+ </xs:element>
+
+
 
  <xs:element name="scaleChoice">
    <xs:complexType>

@@ -12,17 +12,19 @@
 #include<libxml/xpathInternals.h>
 #include<libxml/xmlstring.h>
 
-#define MAX_QCHARS 50   //max chars in question buffer
-#define MAX_ACHARS 50   //max chars in answer buffer
-#define MAX_QS     30   //max questions
-#define QSPACE     5    //row gap between questions
 #define BORDER     5    //vertical units of header and footer
 
 #define MAX_FILE_PATH 200
 #define MAX_XPATH 200
 
+//will change later 
+#define ANSWER_BUFFER_WIDTH   30
+#define QUESTION_BUFFER_WIDTH 30
+#define MAX_FREE_RESPONSE     50 //to be replaced with user defined max in schema
+#define OPTION_PAD             2
 
 
+/*
 struct survey_pad {
   WINDOW *pad;
   int padr_off;         //where the pad should start in the window (in rows)
@@ -32,13 +34,17 @@ struct survey_pad {
   int vqs;              //number of visible questions
   int nq;               //number of questions
 };
+*/
 
 
 void editField(struct survey_pad*,int,int,char[]);
 void clearField(struct survey_pad*,int,char[]);
-void moveIndex(int,int *,int *,struct survey_pad*);
+void moveIndex(int);
 void forceQuit(void);
 
+WINDOW *pad;
+int current_question_index = 0;
+int total_question_count;
 
 int main(int argc,char *argv[])
 {
@@ -133,9 +139,9 @@ int main(int argc,char *argv[])
 
       //package into free_response struct
       free_response * fr_question = malloc(sizeof(free_response));
-      fr_question->prompt = malloc((MAX_ACHARS+1) * sizeof(char)); //REPLACE_MAX_ACHARS
+      fr_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       strcpy(fr_question->prompt,prompt);
-      fr_question->response = malloc(MAX_ACHARS * sizeof(char)); //REPLACE_MAX_ACHARS
+      fr_question->response = malloc((MAX_FREE_RESPONSE+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       frs[(*frc)] = fr_question;
   
       //package into question_header
@@ -171,7 +177,7 @@ int main(int argc,char *argv[])
 
       //extract options
       xmlChar multipleChoiceOptionsPath[MAX_XPATH]; 
-      xmlStrPrintf(multipleChoiceOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/answer",id);
+      xmlStrPrintf(multipleChoiceOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/option",id);
       xmlXPathObject * axoptr = xmlXPathEvalExpression(multipleChoiceOptionsPath,xpathCtx);
       xmlNodeSet *anodes = axoptr->nodesetval; 
       int options_size = (anodes) ? anodes->nodeNr : 0;
@@ -189,7 +195,7 @@ int main(int argc,char *argv[])
       //package into multiple_choice struct
       multiple_choice *mc_question = malloc(sizeof(multiple_choice));
       mc_question = malloc(sizeof(multiple_choice));
-      mc_question->prompt = malloc((MAX_ACHARS+1) * sizeof(char)); //REPLACE_MAX_ACHARS
+      mc_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       strcpy(mc_question->prompt,prompt);
       mc_question->options=optionSet; 
       mc_question->num_options=options_size;
@@ -228,7 +234,7 @@ int main(int argc,char *argv[])
 
       //extract question info 
       xmlChar selectAllOptionsPath[MAX_XPATH]; 
-      xmlStrPrintf(selectAllOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/answer",id);
+      xmlStrPrintf(selectAllOptionsPath,MAX_XPATH,"//question[@id = '%s']/multipleChoice/option",id);
 
       xmlXPathObject * axoptr = xmlXPathEvalExpression(selectAllOptionsPath,xpathCtx);
       xmlNodeSet *anodes = axoptr->nodesetval; 
@@ -246,7 +252,7 @@ int main(int argc,char *argv[])
 
       //package into select all struct
       select_all * sa_question = malloc(sizeof(select_all));
-      sa_question->prompt = malloc(sizeof(MAX_ACHARS * sizeof(char))); //REPLACE_MAX_ACHARS
+      sa_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       strcpy(sa_question->prompt,prompt);
       sa_question->options=optionSet; 
       sa_question->num_options=options_size;
@@ -280,9 +286,9 @@ int main(int argc,char *argv[])
     int multiple_choice_count = getCount(BAD_CAST "//question/questionType[text()='MC']");
     int select_all_count      = getCount(BAD_CAST "//question/questionType[text()='SA']");
     int free_response_count   = getCount(BAD_CAST "//question/questionType[text()='FR']");
-    int scale_choice_count    = getCount(BAD_CAST "//question/questionType[text()='SC']");
+    int scale_choice_count    = 0;   //getCount(BAD_CAST "//question/questionType[text()='SC']");
 
-    int total_count           = multiple_choice_count + select_all_count +
+    total_question_count           = multiple_choice_count + select_all_count +
                                 free_response_count + scale_choice_count;
 
 
@@ -298,7 +304,7 @@ int main(int argc,char *argv[])
         meanwhile question_count is an actual count
     */
 
-    question_header **question_headers = malloc(total_count*sizeof(question_header*));
+    question_header **question_headers = malloc(total_question_count*sizeof(question_header*));
     free_response **free_responses = malloc(free_response_count*sizeof(free_response*));
     select_all **select_alls = malloc(select_all_count*sizeof(select_all*));
     multiple_choice **multiple_choices = malloc(multiple_choice_count*sizeof(multiple_choice*));
@@ -413,15 +419,10 @@ int main(int argc,char *argv[])
     xmlFreeDoc(doc);
    
      
-    exit(0); //exit point for xml-parsing testing
+    //exit(0); //exit point for xml-parsing testing
     //here down needs to reworked with new data structures
 
 
-
-    //remove later ...
-    char questions[MAX_QS][MAX_QCHARS+1] = {{'\0'}};
-    char answers[MAX_QS][MAX_ACHARS+1] = {{'\0'}};
-    int nq = 0;
 
     /////////////////
     // META DATA
@@ -443,12 +444,10 @@ int main(int argc,char *argv[])
 
     initscr();  
     //total dimensions on curses main window
-    int lines = 36;
-    int cols  = 120;
-    //index of end line and col
-    int maxl = lines-1;
-    int maxc = cols-1;
-    wresize(stdscr,lines,cols);  //guess of supported screen size (based on vim lns)
+    int src_lines = 36;
+    int src_cols  = 120;
+
+    wresize(stdscr,src_lines,src_cols);  
     noecho();                   // disable echo
     raw();                      // disable line buffering
     keypad(stdscr,TRUE);        //Get access to F1,F2.... for our window (stdscr)
@@ -481,10 +480,15 @@ int main(int argc,char *argv[])
     init_pair(1,COLOR_MAGENTA,COLOR_BLACK); //questions
     init_pair(2,COLOR_BLUE,COLOR_BLUE);     //answer field (blocked)
     init_pair(3,COLOR_WHITE,COLOR_GREEN);   //submit text
+    attron(COLOR_PAIR(1));
 
     /////////////////////////
     //    Window Layout
     /////////////////////////
+
+    //demarcate pad/window boundary
+    mvaddch(src_lines-2,src_cols-2,'$');
+    mvaddch(src_lines-2,0,'$');
  
     char submit_key_string[] = "F1";  //Survey submission key
  
@@ -494,71 +498,72 @@ int main(int argc,char *argv[])
     printw("PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
     refresh(); 
 
+
     /////////////////////////
     //  Generate Survey Pad
     /////////////////////////
 
-    attron(COLOR_PAIR(1));
 
-    //calculate the size of the padd that fits between the borders
-    int padspacel = MAX_QS*(QSPACE+1);
-    if (padspacel < maxl - (2*BORDER)) {
-      padspacel = maxl - ( 2*BORDER);
-    }
+    //I'm unsure how to calculate how many lines I will need in the pad, as the new model
+    //does not have a strict rule of how much space questions & answers will take up
+    //This will require some calculation or upper bound , hence guess ...
+    int guess = 500;
+    pad = newpad(guess,src_cols-1); 
 
-    //demarcate pad/window boundary
-    mvaddch(maxl-1,maxc-1,'$');
-    mvaddch(maxl-1,0,'$');
+    //y index of that start of questions
+    int *question_y = malloc(total_question_count * sizeof(int));
 
-    WINDOW *pad = newpad(padspacel,maxc);
-    //generate survey in pad
-    for ( int i = 0; i < nq; i++) {
-      wattron(pad,COLOR_PAIR(1));
-      //question
-      mvwprintw(pad,i*QSPACE,0,"    [%d]  %s",i,questions[i]);
-      wattron(pad,COLOR_PAIR(2));
-      //answer field
-      wmove(pad,i*QSPACE,MAX_QCHARS);
-      for ( int k = 0; k < MAX_QCHARS; k++) {
-        waddch(pad,' ');
+    //draw survey in pad
+    int prev_question_end = 0;
+    for ( int i = 0; i < total_question_count; i++) {
+      question_header* qh = question_headers[i];
+      switch (qh->type) {
+        case FR :;
+          question_y[i]=prev_question_end; 
+          free_response* fr = free_responses[qh->tindex];
+          prev_question_end = draw_free_response(fr,prev_question_end);
+          break;
+        case MC :;
+          question_y[i]=prev_question_end; 
+          multiple_choice* mc = multiple_choices[qh->tindex];
+          prev_question_end = draw_multiple_choice(mc,prev_question_end);
+          break;
+        case SA :;
+          question_y[i]=prev_question_end; 
+          select_all* sa = select_alls[qh->tindex];
+          prev_question_end = draw_select_all(sa,prev_question_end);
+          break;
+        case SC :;
+          question_y[i]=prev_question_end; 
+          //scale_choice* sc = scale_choices[qh->tindex];
+          //prev_question_end += 3;
+          break;
+        default :
+          //prev_question_end += 3;
+          question_y[i]=prev_question_end; 
+          break;
       }
     }
    
-    int padr_off = BORDER; //what row does the pad start
-    int padc_off = 0;
-    int pad_view_height = maxl - (2*BORDER); //how many rows does it go for/
-    int pad_view_width  = maxc;
+    int pad_row_offset = BORDER; //what row does the pad start
+    int pad_col_offset = 0;
+    int pad_view_height = src_lines-1 - (2*BORDER); //how many rows does it go for/
+    int pad_view_width  = src_cols-1;
 
-    //calculate the number of questions that will fit in the pad viewport
-    int vqs = pad_view_height/QSPACE; // +1
-    int pad_segment = 0; //what segement of the pad we are on 
 
-    //create a survey_pad struct to group pad dimensions and state
-    struct survey_pad spad = {
-      .pad             = pad,
-      .padr_off        = padr_off,
-      .padc_off        = padc_off,
-      .pad_view_height = pad_view_height,
-      .pad_view_width  = pad_view_width,
-      .vqs             = vqs,
-      .nq              = nq
-    };
-
-    //DEBUG BUFFER
-    int dby = BORDER+pad_view_height+1;
-    mvprintw(dby,0,"vqs is %d",vqs); //debug output
 
     //DEBUG PAD BORDER
-    mvprintw(padr_off-1,0,"-------PAD BORDER-------"); //just before padd starts
-    mvprintw(padr_off+pad_view_height,0,"------PAD BORDER--------");//just after pad ends
+    mvprintw(pad_row_offset-1,0,"-------PAD BORDER-------"); //just before padd starts
+    mvprintw(pad_row_offset+pad_view_height,0,"------PAD BORDER--------");//just after pad ends
 
 
     //draw initial question selector
     int selectIndex = 0;
-    int before = wattron(pad,COLOR_PAIR(1));
-    mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
-    wattron(pad,COLOR_PAIR(before));
-    prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
+    //mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
+    //prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
+    prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
+                 //// ^ location of current question
+
 
 
     //read in keypresses until 'q' or F1 are pressed
@@ -569,29 +574,26 @@ int main(int argc,char *argv[])
       switch(uch) {
         case 'k'    : //fall through
         case KEY_UP :
-          moveIndex(-1,&selectIndex,&pad_segment,&spad);
+          moveIndex(-1);
           break;
         case 'j' : //fall through
         case KEY_DOWN :  
-          moveIndex(1,&selectIndex,&pad_segment,&spad);
+          moveIndex(1);
           break;
         case '\t' : 
-          //for now just forward tab, but in the future cycle tab
-          //will require reworked moveIndex (unless I want a hacky
-          //for loop )
-          moveIndex(1,&selectIndex,&pad_segment,&spad);
+          moveIndex(1);
           break;
         case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
           //void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
-          editField(&spad,pad_segment,selectIndex,answers[selectIndex]);
+          //editField(&spad,pad_segment,selectIndex,answers[selectIndex]);
           break;
         case KEY_F(1) : 
           ok = 0;
           break;
         case KEY_BACKSPACE : ;
-          clearField(&spad,selectIndex,answers[selectIndex]);
+          //clearField(&spad,selectIndex,answers[selectIndex]);
 
-          prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
+          //prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
 
           /*
           int y,x; //if i don't add the above semi colon i get the error
@@ -614,12 +616,14 @@ int main(int argc,char *argv[])
         break;
       }
 
+      prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
       refresh();
     }
 
     //validate that all questions have been answered
+    /*
     int complete = 1;
-    for ( int i = 0; i < nq; i++ ) {
+    for ( int i = 0; i < total_question_count; i++ ) {
       complete &= ( answers[i][0] != '\0');
     }
 
@@ -627,6 +631,7 @@ int main(int argc,char *argv[])
       ok = 1;
       goto USERREAD; 
     }
+    */
 
     //get elapsed time
     struct timeval t2;
@@ -639,21 +644,18 @@ int main(int argc,char *argv[])
     refresh();
     endwin();
 
-    //print answers to standard out
-    /*
-    for ( int i = 0; i < nq; i++ ) {
-      printf("%d  %s\n",i,answers[i]);
-    }
-    */
     fflush(stdout);
     
     //save answers to file 
+    /*
     char *home = getenv("HOME");
     if (home == NULL) {
       printf("unable to find user home");
       exit(9);
     }
+    */
 
+    /*
     char *fileName = "/save.xml";
     int pathLength = strlen(home) + strlen(fileName)-1;
     char path[pathLength];
@@ -664,7 +666,7 @@ int main(int argc,char *argv[])
     printf("opening %s for writing\n",path);
     FILE *fprt; //should be checking if this is a valid pointer
     if ((fprt = fopen(path,"w"))) {
-      for ( int i = 0; i < nq; i++) {
+      for ( int i = 0; i < total_question_count; i++) {
         fprintf(fprt,"%s\n",answers[i]);
       } 
     } else {
@@ -672,15 +674,185 @@ int main(int argc,char *argv[])
       exit(10);
     }
     fclose(fprt); 
+    */
 
 
     return EXIT_SUCCESS;
 }
 
 
+//draw a free response question and return how many lines it took up
+//@fr      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int draw_free_response(free_response *fr,int start_y) {
+ 
+  wattron(pad,COLOR_PAIR(1));
+  int i = 0;
+  int c = 0;
+  int r = 0;
+  //question
+  while ( i < strlen(fr->prompt)) {
+    if ((c % QUESTION_BUFFER_WIDTH) != QUESTION_BUFFER_WIDTH-1 ) {
+      mvwaddch(pad,start_y+r,c,(fr->prompt)[i]);
+      c++;
+    } else {
+      c = 0; 
+      r++;
+    }
+    i++;
+  }
+
+  r++;  
+  wattron(pad,COLOR_PAIR(2));
+  c = 0;
+
+  //needs to be reworked for MAX_FREE_RESPONSE greater than the characters of one line
+  while ( c < MAX_FREE_RESPONSE ) {
+    mvwaddch(pad,start_y+r,c,'_');
+    c++;
+  }
+
+  return (r+start_y+1);
+
+}
+
+
+
+
+//draw a multiple question and return how many lines it took up
+//@mc      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int draw_multiple_choice(multiple_choice *mc,int start_y) {
+ 
+  wattron(pad,COLOR_PAIR(1));
+  int i = 0;
+  int c = 0;
+  int r = 0;
+  //question
+  while ( i < strlen(mc->prompt)) {
+    if ((c % QUESTION_BUFFER_WIDTH) != QUESTION_BUFFER_WIDTH-1 ) {
+      mvwaddch(pad,start_y+r,c,(mc->prompt)[i]);
+      c++;
+    } else {
+      c = 0; 
+      r++;
+    }
+    i++;
+  }
+
+  r++;  
+  c = 0; //place in answer buffer space
+  int d = 0; //place in option string
+  int option = 0; 
+  while (option < mc->num_options) {  //iterate through all options
+    while ( d < strlen((mc->options)[option]) -1) { //keep writing characters for the current options till complete
+      if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
+        mvwaddch(pad,start_y+r,c,((mc->options)[option])[d]);
+        //mvwaddch(pad,start_y+r,c,"x");
+        c++;
+        d++;
+      } else {
+        c = 0;
+        r++;
+      }
+    }
+    //option is complete
+    d = 0; 
+    c+=OPTION_PAD;//add 4 spaces between options | should be a macro (TBD)
+    option++;
+    //if next option won't fit on the line add a new line (TBD)
+    if ((mc->options)[option]) {
+      //handle later (an established max option will be necessary to properly
+      //handle this case
+    }
+  }
+
+  return (r+start_y+1);
+
+}
+
+
+//draw a select all question and return how many lines it took up
+//@sa      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int draw_select_all(select_all *sa,int start_y) {
+ 
+  wattron(pad,COLOR_PAIR(1));
+  int i = 0;
+  int c = 0;
+  int r = 0;
+  //question
+  while ( i < strlen(sa->prompt)) {
+    if ((c % QUESTION_BUFFER_WIDTH) != QUESTION_BUFFER_WIDTH-1 ) {
+      mvwaddch(pad,start_y+r,c,(sa->prompt)[i]);
+      c++;
+    } else {
+      c = 0; 
+      r++;
+    }
+    i++;
+  }
+
+  r++;  
+  c = 0; //place in answer buffer space
+  int d = 0; //place in option string
+  int option = 0; 
+  while (option < sa->num_options) {  //iterate through all options
+    while ( d < strlen((sa->options)[option]) -1) { //keep writing characters for the current options till complete
+      if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
+        mvwaddch(pad,start_y+r,c,((sa->options)[option])[d]);
+        //mvwaddch(pad,start_y+r,c,"x");
+        c++;
+        d++;
+      } else {
+        c = 0;
+        r++;
+      }
+    }
+    //option is complete
+    d = 0; 
+    c+=OPTION_PAD;//add 4 spaces between options | should be a macro (TBD)
+    option++;
+    //if next option won't fit on the line add a new line (TBD)
+    if ((sa->options)[option]) {
+      //handle later (an established max option will be necessary to properly
+      //handle this case
+    }
+  }
+
+  return (r+start_y+1);
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //need to ban all control/special characters , but
 //have a special process for backspace and clear
 //WARNING! not checking for buffer overflow
+/*
 void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
   //int charCount = 0;
   int end = 0;
@@ -703,13 +875,7 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
       case 10 :
         ok = 0;
         break;
-      /* this does not behave as anticipated, i see
-         that the block spaces disappear on backspace
-         but I explicitly add one back , unsure of what is
-         going on here
-      */
       case KEY_BACKSPACE :;
-        /*
         attron(COLOR_PAIR(2));
         addch('X');
         attron(COLOR_PAIR(1));
@@ -721,7 +887,6 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
         answer[charPos] = '\0';
         charPos--;
         break;
-        */
       default :
         if (charPos < MAX_ACHARS-1) {
           //do not write control characters
@@ -740,20 +905,9 @@ void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answ
   }
   wattron(spad->pad,COLOR_PAIR(last));
 }
-
-/*
-struct survey_pad {
-  WINDOW *pad;
-  int padr_off;         //where the pad should start in the window (in rows)
-  int padc_off;         //where the pad should start in the window (in cols)
-  int pad_view_height;  //viewport height
-  int pad_view_width;   //viewport width
-  int vqs;              //number of visible questions
-  int nq;               //number of questions
-};
 */
 
-
+/*
 void clearField(struct survey_pad *spad,int selectIndex,char answer[]) {
   //clear internal buffer 
   answer[0] = '\0';
@@ -765,6 +919,7 @@ void clearField(struct survey_pad *spad,int selectIndex,char answer[]) {
   }
   wattron(spad->pad,COLOR_PAIR(last));
 }
+*/
 
 
 void forceQuit(void) {
@@ -775,7 +930,16 @@ void forceQuit(void) {
   exit(0);
 }
 
+//move the pad so that it focuses the ith question from where it was 
+//@i question relative to current position
+void moveIndex(int i) {
+  int new_index = current_question_index + i;
+  if (new_index >= 0 && new_index < total_question_count) {
+    current_question_index = new_index; 
+  }
+}
 
+/*
 void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) {
 
   if (i<0) {
@@ -802,12 +966,7 @@ void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) 
 
       int before = wattron(spad->pad,COLOR_PAIR(1));
       //delete old cursor 
-      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,' '); 
-
-      //update index
-      (*selectIndex)++;
-      //add new cursor
-      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,'>'); 
+      mvwaddch(spad->pad->pad,QSPACE*(*selectIndex),0,'>'); 
       wattron(spad->pad,COLOR_PAIR(before));
 
       if ((*selectIndex) % spad->vqs == 0) {
@@ -821,3 +980,4 @@ void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) 
     spad->padr_off,spad->padc_off,
     spad->pad_view_height-2 + spad->padr_off,spad->pad_view_width);
 }
+*/
