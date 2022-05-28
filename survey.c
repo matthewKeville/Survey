@@ -14,11 +14,12 @@
 
 #define BORDER          5    //vertical units of header and footer
 #define OPTION_PAD      2    //Space between multiple choice / select all options
+#define QUESTION_PAD    1    //extra space between questions
 #define MAX_FILE_PATH 200
 #define MAX_XPATH     200
 
-#define ANSWER_BUFFER_WIDTH   30 //how many chars can be written on the same line for answers
-#define QUESTION_BUFFER_WIDTH 30 //how many chars can be written on the same line for questions
+#define ANSWER_BUFFER_WIDTH   60 //how many chars can be written on the same line for answers
+#define QUESTION_BUFFER_WIDTH 60 //how many chars can be written on the same line for questions
 
 #define MAX_FREE_RESPONSE     50  //to be replaced with user defined max in schema (how chars user can enter for fr question)
 #define MAX_PROMPT            300 //defined in schema
@@ -142,6 +143,8 @@ int main(int argc,char *argv[])
       fr_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       strcpy(fr_question->prompt,prompt);
       fr_question->response = malloc((maxLength+1) * sizeof(char)); //REPLACE_MAX_ACHARS
+      memset(fr_question->response,' ',maxLength);
+      fr_question->response[maxLength]='\0';
       frs[(*frc)] = fr_question;
   
       //package into question_header
@@ -270,6 +273,126 @@ int main(int argc,char *argv[])
       (*sac)++;
   }
 
+
+    //scs : scale_choice pointer array
+    //scc : scale_choice counter
+    //qc  : question count
+    //qhs : question header pointer array
+    void processScaleChoice(xmlChar *id,scale_choice **srs,int *src,question_header **qhs,int *qc) {
+
+      //extract the prompt
+      xmlChar questionPromptPath[MAX_XPATH]; 
+      xmlStrPrintf(questionPromptPath,MAX_XPATH,"//question[@id = '%s']/prompt",id);
+
+      xmlXPathObject * pxoptr = xmlXPathEvalExpression(questionPromptPath,xpathCtx);
+      xmlNodeSet *pnodes = pxoptr->nodesetval;
+      xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
+
+      char *prompt = malloc( (strlen((char *)promptXml)+1) * sizeof (char));
+      strcpy(prompt,(char *)promptXml);
+
+      //Since scale_choice is a complex sequence 1 xquery with node traversal would be easier than
+      //4 separate xqueries
+
+      //extract question info 
+      xmlChar scaleChoicePath[MAX_XPATH]; 
+      xmlStrPrintf(scaleChoicePath,MAX_XPATH,"//question[@id = '%s']/scaleChoice",id);
+
+      xmlXPathObject * axoptr = xmlXPathEvalExpression(scaleChoicePath,xpathCtx);
+      xmlNodeSet *anodes = axoptr->nodesetval; 
+      int options_size = (anodes) ? anodes->nodeNr : 0;
+
+
+      scale_choice * sc_question = malloc(sizeof(scale_choice));
+      sc_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); 
+      strcpy(sc_question->prompt,prompt);
+
+      
+      //scale variables | This assumes the order min , max , step , start | current version of schema.xsd
+
+      //xmlChar * -> int is troublesome..
+      //https://mail.gnome.org/archives/xml/2003-April/msg00060.html
+      //atoi expects null terminated char array, but xmlNodeGetContent does not return a string
+      //i need to add the null byte to the string before calling atoi ...
+
+      xmlNode *dur = anodes->nodeTab[0];
+      char *value  = (char *)xmlNodeGetContent(dur); 
+      int len = strlen(value);
+      char *min_chars = malloc((len+1)*sizeof(char));
+      strcpy(min_chars,value);
+      min_chars[len]='\0';
+      sc_question->min=atoi(min_chars);
+
+      dur = anodes->nodeTab[1];
+      value  = (char *)xmlNodeGetContent(dur); 
+      len = strlen(value);
+      min_chars = malloc((len+1)*sizeof(char));
+      strcpy(min_chars,value);
+      min_chars[len]='\0';
+      sc_question->max=atoi(min_chars);
+
+      dur = anodes->nodeTab[2];
+      value  = (char *)xmlNodeGetContent(dur); 
+      len = strlen(value);
+      min_chars = malloc((len+1)*sizeof(char));
+      strcpy(min_chars,value);
+      min_chars[len]='\0';
+      sc_question->step=atoi(min_chars);
+
+      dur = anodes->nodeTab[3];
+      value  = (char *)xmlNodeGetContent(dur); 
+      len = strlen(value);
+      min_chars = malloc((len+1)*sizeof(char));
+      strcpy(min_chars,value);
+      min_chars[len]='\0';
+      sc_question->start=atoi(min_chars);
+
+      
+      /*
+      dur = anodes->nodeTab[1];
+      char *value2  = (char *)xmlNodeGetContent(dur); 
+      sc_question->max=atoi(value2);
+      dur = anodes->nodeTab[2];
+      char *value3  = (char *)xmlNodeGetContent(dur); 
+      sc_question->step=atoi(value3);
+      dur = anodes->nodeTab[3];
+      char *value4  = (char *)xmlNodeGetContent(dur); 
+      sc_question->start=atoi(value4);
+      */
+
+      scale_choice* s = sc_question;
+      printf(" %d %d %d %d ",s->min,s->max,s->start,s->step);
+      /*
+      printf(" %s %s %s %s ",value,value2,value3,value4);
+      */
+
+      exit(0);
+
+
+      //package into select all struct
+      /*
+      select_all * sa_question = malloc(sizeof(select_all));
+      sa_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
+      strcpy(sa_question->prompt,prompt);
+      sa_question->options=optionSet; 
+      sa_question->num_options=options_size;
+      sa_question->selected=calloc(options_size,sizeof(int));
+      sas[(*sac)]=sa_question;
+  
+      //package into question_header
+      question_header * q_header = malloc(sizeof(question_header)); 
+      q_header->type=SA;
+      q_header->index=(*qc);
+      q_header->tindex=(*sac);
+
+      qhs[(*qc)]=q_header;
+      (*qc)++;
+      (*sac)++;
+      */
+  }
+
+
+
     /////////////////////////////////////////
     //query for amount of each question type
     ///////////////////////////////////////// 
@@ -345,7 +468,9 @@ int main(int argc,char *argv[])
         processFreeResponse(current_id,free_responses,&free_response_index,
           question_headers,&question_index); 
       } else if (strcmp(question_type,"SC")==0) {
-        //todo
+        printf("found scale choice\n");
+        processScaleChoice(current_id,scale_choices,&scale_choice_index,
+          question_headers,&question_index); 
       } else {
         printf("Unkown question type %s, not known to schema\n",question_type);
         exit(21);
@@ -495,7 +620,7 @@ int main(int argc,char *argv[])
     //Write Survey Banner
     addstr("Daily Survey\n");
     //Submission info
-    printw("PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
+    mvprintw(0,0,"PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
     refresh(); 
 
 
@@ -704,14 +829,23 @@ int draw_free_response(free_response *fr,int start_y) {
   }
 
   r++;  
-  wattron(pad,COLOR_PAIR(2));
-  c = 0;
 
-  //needs to be reworked for MAX_FREE_RESPONSE greater than the characters of one line
-  while ( c < MAX_FREE_RESPONSE ) {
-    mvwaddch(pad,start_y+r,c,'_');
-    c++;
+  //response
+  i = 0;
+  c = 0;
+  wattron(pad,COLOR_PAIR(2));
+  while ( i < strlen(fr->response)) {
+    if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
+      mvwaddch(pad,start_y+r,c,(fr->response)[i]);
+      c++;
+    } else {
+      c = 0; 
+      r++;
+    }
+    i++;
   }
+
+  r+=QUESTION_PAD;
 
   return (r+start_y+1);
 
@@ -769,6 +903,7 @@ int draw_multiple_choice(multiple_choice *mc,int start_y) {
     }
   }
 
+  r+=QUESTION_PAD;
   return (r+start_y+1);
 
 }
@@ -823,6 +958,7 @@ int draw_select_all(select_all *sa,int start_y) {
     }
   }
 
+  r+=QUESTION_PAD;
   return (r+start_y+1);
 
 }

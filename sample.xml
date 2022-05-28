@@ -3,6 +3,17 @@
   <title>Sample Quiz</title>
   <author>Matthew Keville</author>
 
+  <question id="q000">
+    <prompt>Which is the best number?</prompt>
+    <questionType>SC</questionType>
+      <scaleChoice>
+        <min>0</min>
+        <max>10</max>
+        <step>1</step>
+        <start>5</start>
+      </scaleChoice>
+  </question>
+
   <question id="q123">
     <prompt>Which of the following did you do yesterday?</prompt>
     <questionType>MC</questionType>
