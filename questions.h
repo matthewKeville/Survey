@@ -14,6 +14,8 @@ typedef struct {
   char **options;
   int  num_options;
   int  selected;
+  int hovered;
+  int edit;
 } multiple_choice;
 
 
@@ -22,6 +24,8 @@ typedef struct {
   char **options;
   int  num_options;
   int  *selected; //int array with num_options ints
+  int  hovered;
+  int edit;
 } select_all;
 
 typedef struct {
@@ -31,6 +35,7 @@ typedef struct {
   int step;
   int start;
   int selected;
+  int edit;
 } scale_choice;
 
 

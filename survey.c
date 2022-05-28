@@ -36,6 +36,12 @@ void forceQuit(void);
 WINDOW *pad;
 int current_question_index = 0;
 int total_question_count;
+int *question_y;
+
+int pad_row_offset; 
+int pad_col_offset;
+int pad_view_height; 
+int pad_view_width;  
 
 int main(int argc,char *argv[])
 {
@@ -202,7 +208,9 @@ int main(int argc,char *argv[])
       strcpy(mc_question->prompt,prompt);
       mc_question->options=optionSet; 
       mc_question->num_options=options_size;
-      mc_question->selected=-1;
+      mc_question->selected=0;
+      mc_question->hovered=0;
+      mc_question->edit=0;
       mcs[(*mcc)]=mc_question;
   
       //package into question_header
@@ -260,6 +268,8 @@ int main(int argc,char *argv[])
       sa_question->options=optionSet; 
       sa_question->num_options=options_size;
       sa_question->selected=calloc(options_size,sizeof(int));
+      sa_question->hovered=0;
+      sa_question->edit=0;
       sas[(*sac)]=sa_question;
   
       //package into question_header
@@ -327,6 +337,7 @@ int main(int argc,char *argv[])
       sc_question->start=atoi((char *)value);
       //selected
       sc_question->selected=sc_question->start;
+      sc_question->edit=0;
 
       scs[(*scc)]=sc_question;
   
@@ -517,7 +528,7 @@ int main(int argc,char *argv[])
 
     initscr();  
     //total dimensions on curses main window
-    int src_lines = 36;
+    int src_lines = 50;
     int src_cols  = 120;
 
     wresize(stdscr,src_lines,src_cols);  
@@ -552,7 +563,8 @@ int main(int argc,char *argv[])
     //setup color combinations
     init_pair(1,COLOR_MAGENTA,COLOR_BLACK); //questions
     init_pair(2,COLOR_BLUE,COLOR_BLUE);     //answer field (blocked)
-    init_pair(3,COLOR_WHITE,COLOR_GREEN);   //submit text
+    init_pair(3,COLOR_YELLOW,COLOR_BLACK);  //hovered option
+    init_pair(4,COLOR_CYAN,COLOR_BLACK);   //select option
     attron(COLOR_PAIR(1));
 
     /////////////////////////
@@ -584,7 +596,8 @@ int main(int argc,char *argv[])
     pad = newpad(guess,src_cols-1); 
 
     //y index of that start of questions
-    int *question_y = malloc(total_question_count * sizeof(int));
+    //int *question_y = malloc(total_question_count * sizeof(int));
+    question_y = malloc(total_question_count * sizeof(int));
 
     //draw survey in pad
     int prev_question_end = 0;
@@ -618,10 +631,10 @@ int main(int argc,char *argv[])
       }
     }
    
-    int pad_row_offset = BORDER; //what row does the pad start
-    int pad_col_offset = 0;
-    int pad_view_height = src_lines-1 - (2*BORDER); //how many rows does it go for/
-    int pad_view_width  = src_cols-1;
+    pad_row_offset = BORDER; //what row does the pad start
+    pad_col_offset = 0;
+    pad_view_height = src_lines-1 - (2*BORDER); //how many rows does it go for/
+    pad_view_width  = src_cols-1;
 
 
 
@@ -631,10 +644,10 @@ int main(int argc,char *argv[])
 
 
     //draw initial question selector
-    int selectIndex = 0;
     //mvwaddch(pad,QSPACE*selectIndex,0,'>'); 
     //prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
-    prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
+    //prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
+    updatePad();
                  //// ^ location of current question
 
 
@@ -656,9 +669,25 @@ int main(int argc,char *argv[])
         case '\t' : 
           moveIndex(1);
           break;
-        case 10 : //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
-          //void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
-          //editField(&spad,pad_segment,selectIndex,answers[selectIndex]);
+        case 10 :; //KEY_ENTER is for ENTER on numeric key pad , 10 is normal enter 
+          question_header *qh = question_headers[current_question_index];
+          int qy = question_y[current_question_index];
+          if(qh->type == MC) {
+            debugPrint("answer multiple choice");
+            multiple_choice *mc = multiple_choices[qh->tindex];
+            answer_multiple_choice(mc,qy);
+          }
+          if(qh->type == SC) {
+            debugPrint("answer scale choice");
+            scale_choice *sc = scale_choices[qh->tindex];
+            answer_scale_choice(sc,qy);
+          }
+          if(qh->type == SA) {
+            debugPrint("answer select all");
+            select_all *sa = select_alls[qh->tindex];
+            answer_select_all(sa,qy);
+          }
+          
           break;
         case KEY_F(1) : 
           ok = 0;
@@ -666,7 +695,6 @@ int main(int argc,char *argv[])
         case KEY_BACKSPACE : ;
           //clearField(&spad,selectIndex,answers[selectIndex]);
 
-          //prefresh(pad,(pad_segment)*(vqs*QSPACE),0,padr_off,padc_off,pad_view_height-2+padr_off,pad_view_width);
 
           /*
           int y,x; //if i don't add the above semi colon i get the error
@@ -688,8 +716,7 @@ int main(int argc,char *argv[])
       default :
         break;
       }
-
-      prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
+      updatePad();
       refresh();
     }
 
@@ -794,7 +821,6 @@ int draw_free_response(free_response *fr,int start_y) {
   }
 
   r+=QUESTION_PAD;
-
   return (r+start_y+1);
 
 }
@@ -829,6 +855,13 @@ int draw_multiple_choice(multiple_choice *mc,int start_y) {
   int d = 0; //place in option string
   int option = 0; 
   while (option < mc->num_options) {  //iterate through all options
+    if ((!mc->edit || option != mc->hovered) && option == mc->selected) {
+      wattron(pad,COLOR_PAIR(4));
+    } else if (option == mc->hovered){
+      wattron(pad,COLOR_PAIR(3));
+    } else {
+      wattron(pad,COLOR_PAIR(1));
+    }
     while ( d < strlen((mc->options)[option]) -1) { //keep writing characters for the current options till complete
       if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
         mvwaddch(pad,start_y+r,c,((mc->options)[option])[d]);
@@ -851,6 +884,7 @@ int draw_multiple_choice(multiple_choice *mc,int start_y) {
     }
   }
 
+  wattron(pad,COLOR_PAIR(1));
   r+=QUESTION_PAD;
   return (r+start_y+1);
 
@@ -884,10 +918,16 @@ int draw_select_all(select_all *sa,int start_y) {
   int d = 0; //place in option string
   int option = 0; 
   while (option < sa->num_options) {  //iterate through all options
+    if (sa->selected[option] && (option!=sa->hovered || !sa->edit)) { //draw selected options
+      wattron(pad,COLOR_PAIR(4));
+    } else if (option == sa->hovered && sa->edit) {
+      wattron(pad,COLOR_PAIR(3));
+    } else {
+      wattron(pad,COLOR_PAIR(1));
+    }
     while ( d < strlen((sa->options)[option]) -1) { //keep writing characters for the current options till complete
       if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
         mvwaddch(pad,start_y+r,c,((sa->options)[option])[d]);
-        //mvwaddch(pad,start_y+r,c,"x");
         c++;
         d++;
       } else {
@@ -900,10 +940,12 @@ int draw_select_all(select_all *sa,int start_y) {
     c+=OPTION_PAD;//add 4 spaces between options | should be a macro (TBD)
     option++;
     //if next option won't fit on the line add a new line (TBD)
+    /*
     if ((sa->options)[option]) {
       //handle later (an established max option will be necessary to properly
       //handle this case
     }
+    */
   }
 
   r+=QUESTION_PAD;
@@ -941,13 +983,143 @@ int draw_scale_choice(scale_choice *sc,int start_y) {
 
   // TODO: need to count digit strlen to make sure that this
   // gets printed on the same line
-  mvwprintw(pad,start_y+r,c,"[%d]",sc->selected);
+  //mvwprintw(pad,start_y+r,c,"[%d]",sc->selected);
+
+  mvwaddch(pad,start_y+r,c,'[');
+  c++;
+  if(sc->edit) {
+  wattron(pad,COLOR_PAIR(3));
+  } else {
+    wattron(pad,COLOR_PAIR(4));
+  }
+  mvwprintw(pad,start_y+r,c,"%d",sc->selected);
+  if (sc->selected >= 10 || sc->selected <= -10) {
+    c+=2;
+  } else {
+    c+=1;
+  }
+  wattron(pad,COLOR_PAIR(1));
+  mvwaddch(pad,start_y+r,c,']');
   r+=QUESTION_PAD;
   return (r+start_y+1);
 
 }
 
 
+//@mc      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int answer_multiple_choice(multiple_choice *mc,int start_y) {
+
+  int uch;
+  int ok = 1;
+  int selected = mc->selected;
+  mc->edit=1;
+  draw_multiple_choice(mc,start_y);
+  updatePad();
+  while (ok) { 
+    uch = getch();
+    switch(uch) {
+      case '\t' : 
+        mc->hovered = (mc->hovered+1) % mc->num_options;
+        break;
+      case 10 : //enter 
+        mc->selected = mc->hovered;
+        ok = false;
+        break;
+    }
+    draw_multiple_choice(mc,start_y);
+    updatePad();
+  }
+  mc->edit=0;
+  draw_multiple_choice(mc,start_y);
+  updatePad();
+
+}
+
+
+/*
+  This will require some new scheme as the convention i had in mind
+  was enter to finish answer a question, but I need to have a keystroke
+  to make an option selected and one to exit the answer.
+  
+  Furthermore I need some indication of state for the draw method,
+  so It might be necessary to add another field to the multiple_choice
+  struct that tracks what option is hovered ...
+
+
+*/
+
+//@sa      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int answer_select_all(select_all *sa,int start_y) {
+  int uch;
+  int ok = 1;
+  int *selected = sa->selected;
+  sa->edit=1;
+  draw_select_all(sa,start_y);
+  updatePad();
+  while (ok) { 
+    uch = getch();
+    switch(uch) {
+      case '\t' : //cycle current option
+        sa->hovered = (sa->hovered+1) % sa->num_options;
+        break;
+      case ' ' : //spacebar (not ideal) : select option
+        sa->selected[sa->hovered] = !(sa->selected[sa->hovered]);
+        if (sa->selected[sa->hovered]) {
+          debugPrint("true");
+        } else {
+          debugPrint("false");
+        }
+        break;
+      case 10 : //enter 
+        ok = false;
+        break;
+    }
+    draw_select_all(sa,start_y);
+    updatePad();
+  }
+  sa->edit=0;
+  draw_select_all(sa,start_y);
+  updatePad();
+}
+
+
+
+//@sc      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+//@return  :the row immediatly after the end of this question
+int answer_scale_choice(scale_choice *sc,int start_y) {
+
+  int uch;
+  int ok = 1;
+  int selected = sc->selected;
+  sc->edit = 1;
+  draw_scale_choice(sc,start_y);
+  updatePad();
+  while (ok) { 
+    uch = getch();
+    switch(uch) {
+      case KEY_UP : 
+        sc->selected = (sc->selected +sc->step < sc->max) ? (sc->selected+ sc->step) : sc->max;
+        break;
+      case KEY_DOWN : 
+        sc->selected = (sc->selected - sc->step > sc->min) ? (sc->selected - sc->step) : sc->min;
+        break;
+      case 10 : //enter 
+        ok = false;
+        break;
+    }
+    draw_scale_choice(sc,start_y);
+    updatePad();
+  }
+  sc->edit = 0;
+  draw_scale_choice(sc,start_y);
+  updatePad();
+
+}
 
 
 
@@ -1058,7 +1230,20 @@ void moveIndex(int i) {
   if (new_index >= 0 && new_index < total_question_count) {
     current_question_index = new_index; 
   }
+  char msg[10];
+  sprintf(msg,"selected %d",current_question_index);
+  debugPrint(msg);
 }
+
+void debugPrint(char *msg) {
+  mvprintw(pad_row_offset+pad_view_height+1,0,msg);//just after pad ends
+}
+
+void updatePad(void) {
+  prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
+}
+
+
 
 /*
 void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) {
