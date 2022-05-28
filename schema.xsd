@@ -57,7 +57,19 @@
 
 
  <xs:element name="freeResponse">
+   <xs:complexType>
+       <xs:attribute ref="maxLength" use="required"/>
+   </xs:complexType>
  </xs:element>
+
+<xs:attribute name="maxLength">
+  <xs:simpleType>
+    <xs:restriction base="xs:integer">
+      <xs:maxInclusive value="300"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:attribute>
+
 
 <!-- Prompts can have no more than 300 characters -->
  <xs:element name="prompt">

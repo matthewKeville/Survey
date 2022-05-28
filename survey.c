@@ -12,36 +12,26 @@
 #include<libxml/xpathInternals.h>
 #include<libxml/xmlstring.h>
 
-#define BORDER     5    //vertical units of header and footer
-
+#define BORDER          5    //vertical units of header and footer
+#define OPTION_PAD      2    //Space between multiple choice / select all options
 #define MAX_FILE_PATH 200
-#define MAX_XPATH 200
+#define MAX_XPATH     200
 
-//will change later 
-#define ANSWER_BUFFER_WIDTH   30
-#define QUESTION_BUFFER_WIDTH 30
-#define MAX_FREE_RESPONSE     50 //to be replaced with user defined max in schema
-#define OPTION_PAD             2
+#define ANSWER_BUFFER_WIDTH   30 //how many chars can be written on the same line for answers
+#define QUESTION_BUFFER_WIDTH 30 //how many chars can be written on the same line for questions
 
+#define MAX_FREE_RESPONSE     50  //to be replaced with user defined max in schema (how chars user can enter for fr question)
+#define MAX_PROMPT            300 //defined in schema
 
-/*
-struct survey_pad {
-  WINDOW *pad;
-  int padr_off;         //where the pad should start in the window (in rows)
-  int padc_off;         //where the pad should start in the window (in cols)
-  int pad_view_height;  //viewport height
-  int pad_view_width;   //viewport width
-  int vqs;              //number of visible questions
-  int nq;               //number of questions
-};
-*/
-
-
+//unused
 void editField(struct survey_pad*,int,int,char[]);
 void clearField(struct survey_pad*,int,char[]);
+
+
 void moveIndex(int);
 void forceQuit(void);
 
+//globals
 WINDOW *pad;
 int current_question_index = 0;
 int total_question_count;
@@ -134,6 +124,16 @@ int main(int argc,char *argv[])
       xmlNodeSet *pnodes = pxoptr->nodesetval;
       xmlChar *promptXml = xmlNodeGetContent(pnodes->nodeTab[0]);
 
+
+      //extract maxLength of response
+      xmlChar questionPromptMaxLengthPath[MAX_XPATH]; 
+      xmlStrPrintf(questionPromptMaxLengthPath,MAX_XPATH,"string(//question[@id = 'q333']/freeResponse/@maxLength)",id);
+      xmlXPathObject * axoptr = xmlXPathEvalExpression(questionPromptMaxLengthPath,xpathCtx);
+
+      xmlChar * maxLengthXml = axoptr->stringval; //this works because the query is asking for text 
+                                                  //should have been using this all along
+      int maxLength = atoi( (char *) maxLengthXml);
+
       char *prompt = malloc( (strlen((char *)promptXml)+1) * sizeof (char));
       strcpy(prompt,(char *)promptXml);
 
@@ -141,7 +141,7 @@ int main(int argc,char *argv[])
       free_response * fr_question = malloc(sizeof(free_response));
       fr_question->prompt = malloc((xmlStrlen(promptXml)+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       strcpy(fr_question->prompt,prompt);
-      fr_question->response = malloc((MAX_FREE_RESPONSE+1) * sizeof(char)); //REPLACE_MAX_ACHARS
+      fr_question->response = malloc((maxLength+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       frs[(*frc)] = fr_question;
   
       //package into question_header

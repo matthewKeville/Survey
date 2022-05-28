@@ -45,19 +45,19 @@
   <question id="q3">
     <prompt>How are you feeling right now?</prompt>
     <questionType>FR</questionType>
-    <freeResponse/>
+    <freeResponse maxLength="200"/>
   </question>
 
   <question id="q322">
     <prompt>How are you feeling right now?</prompt>
     <questionType>FR</questionType>
-    <freeResponse/>
+    <freeResponse maxLength="200"/>
   </question>
 
   <question id="q333">
     <prompt>How are you feeling right now?</prompt>
     <questionType>FR</questionType>
-    <freeResponse/>
+    <freeResponse maxLength="100"/>
   </question>
 
 
@@ -118,20 +118,6 @@
     </multipleChoice>
   </question>
 
-
-
-<!--
-  <question id="q42">
-    <prompt>On a scale of 1 to 10, 10 being most awake, how awake are you?</prompt>
-    <questionType>SC</questionType>
-    <scaleChoice>
-      <min>1</min>
-      <max>10</max>
-      <step>1</step>
-      <start>5</start>
-    </scaleChoice>
-  </question>
--->
 
 
 </survey>
