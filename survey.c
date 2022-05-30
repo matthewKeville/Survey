@@ -18,10 +18,8 @@
 #define MAX_FILE_PATH 200
 #define MAX_XPATH     200
 
-#define ANSWER_BUFFER_WIDTH   60 //how many chars can be written on the same line for answers
-#define QUESTION_BUFFER_WIDTH 60 //how many chars can be written on the same line for questions
-
-#define MAX_FREE_RESPONSE     50  //to be replaced with user defined max in schema (how chars user can enter for fr question)
+#define ANSWER_BUFFER_WIDTH   100 //how many chars can be written on the same line for answers
+#define QUESTION_BUFFER_WIDTH 100 //how many chars can be written on the same line for questions
 #define MAX_PROMPT            300 //defined in schema
 
 //unused
@@ -134,7 +132,7 @@ int main(int argc,char *argv[])
 
       //extract maxLength of response
       xmlChar questionPromptMaxLengthPath[MAX_XPATH]; 
-      xmlStrPrintf(questionPromptMaxLengthPath,MAX_XPATH,"string(//question[@id = 'q333']/freeResponse/@maxLength)",id);
+      xmlStrPrintf(questionPromptMaxLengthPath,MAX_XPATH,"string(//question[@id = '%s']/freeResponse/@maxLength)",id);
       xmlXPathObject * axoptr = xmlXPathEvalExpression(questionPromptMaxLengthPath,xpathCtx);
 
       xmlChar * maxLengthXml = axoptr->stringval; //this works because the query is asking for text 
@@ -151,7 +149,10 @@ int main(int argc,char *argv[])
       fr_question->response = malloc((maxLength+1) * sizeof(char)); //REPLACE_MAX_ACHARS
       memset(fr_question->response,' ',maxLength);
       fr_question->response[maxLength]='\0';
+      fr_question->response_buffer_size = maxLength;
+      fr_question->char_index=0;
       frs[(*frc)] = fr_question;
+
   
       //package into question_header
       question_header * q_header = (malloc(sizeof(question_header)));
@@ -462,6 +463,8 @@ int main(int argc,char *argv[])
     void print_free_response(int fr_index) {
       free_response *fr = free_responses[fr_index];
       printf("\t%s\n",fr->prompt);
+      printf("\t%d\n",fr->response_buffer_size);
+      printf("\t%d\n",fr->char_index);
     }
    
     void print_scale_choice(int sc_index) {
@@ -580,7 +583,7 @@ int main(int argc,char *argv[])
     //Write Survey Banner
     mvprintw(0,0,"Daily Survey");
     //Submission info
-    mvprintw(1,0,"PRESS %s , to submit | PRESS ENTER , to type,  PRESS BACKSPACE , to clear field",submit_key_string);
+    mvprintw(1,0,"PRESS %s , to submit | PRESS ENTER answer, PRESS TAB to cycle  ",submit_key_string);
     refresh(); 
 
 
@@ -626,7 +629,7 @@ int main(int argc,char *argv[])
           break;
         default :
           //prev_question_end += 3;
-          question_y[i]=prev_question_end; 
+          //question_y[i]=prev_question_end; 
           break;
       }
     }
@@ -686,6 +689,11 @@ int main(int argc,char *argv[])
             debugPrint("answer select all");
             select_all *sa = select_alls[qh->tindex];
             answer_select_all(sa,qy);
+          }
+          if(qh->type == FR) {
+            debugPrint("answer free response");
+            free_response *fr = free_responses[qh->tindex];
+            answer_free_response(fr,qy);
           }
           
           break;
@@ -808,17 +816,23 @@ int draw_free_response(free_response *fr,int start_y) {
   //response
   i = 0;
   c = 0;
-  wattron(pad,COLOR_PAIR(2));
-  while ( i < strlen(fr->response)) {
-    if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
-      mvwaddch(pad,start_y+r,c,(fr->response)[i]);
-      c++;
+  wattron(pad,COLOR_PAIR(4));
+
+  while ( i < fr->response_buffer_size) {
+    if (i < fr->char_index) {
+      if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
+        mvwaddch(pad,start_y+r,c,(fr->response)[i]);
+        c++;
+      } else {
+        c = 0; 
+        r++;
+      }
     } else {
-      c = 0; 
-      r++;
+      mvwaddch(pad,start_y+r,c,' ');
     }
     i++;
   }
+
 
   r+=QUESTION_PAD;
   return (r+start_y+1);
@@ -862,7 +876,7 @@ int draw_multiple_choice(multiple_choice *mc,int start_y) {
     } else {
       wattron(pad,COLOR_PAIR(1));
     }
-    while ( d < strlen((mc->options)[option]) -1) { //keep writing characters for the current options till complete
+    while ( d < strlen((mc->options)[option])) { //keep writing characters for the current options till complete
       if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
         mvwaddch(pad,start_y+r,c,((mc->options)[option])[d]);
         //mvwaddch(pad,start_y+r,c,"x");
@@ -925,7 +939,7 @@ int draw_select_all(select_all *sa,int start_y) {
     } else {
       wattron(pad,COLOR_PAIR(1));
     }
-    while ( d < strlen((sa->options)[option]) -1) { //keep writing characters for the current options till complete
+    while ( d < strlen((sa->options)[option])-1) { //keep writing characters for the current options till complete
       if ((c % ANSWER_BUFFER_WIDTH) != ANSWER_BUFFER_WIDTH-1 ) {
         mvwaddch(pad,start_y+r,c,((sa->options)[option])[d]);
         c++;
@@ -1006,10 +1020,49 @@ int draw_scale_choice(scale_choice *sc,int start_y) {
 }
 
 
+//@fr      : a pointer to the question 
+//@start_y : the starting row to draw the question 
+void answer_free_response(free_response *fr,int start_y) {
+
+  int uch;
+  int ok = 1;
+  //mc->edit=1;
+  draw_free_response(fr,start_y);
+  updatePad();
+  while (ok) { 
+    uch = getch();
+    switch(uch) {
+      case 10 : //enter 
+        ok = false;
+        break;
+      case KEY_BACKSPACE:
+        if (fr->char_index != 0) {
+          fr->response[fr->char_index]='\0';
+          fr->char_index--;
+        }
+        break;
+      default :
+        if (fr->char_index < fr->response_buffer_size) {
+          fr->response[fr->char_index]=uch;
+          fr->char_index++;
+        }
+        break;
+    }
+    draw_free_response(fr,start_y);
+    updatePad();
+    debugPrint(fr->response);
+  }
+  //mc->edit=0;
+  draw_free_response(fr,start_y);
+  updatePad();
+
+}
+
+
 //@mc      : a pointer to the question 
 //@start_y : the starting row to draw the question 
 //@return  :the row immediatly after the end of this question
-int answer_multiple_choice(multiple_choice *mc,int start_y) {
+void answer_multiple_choice(multiple_choice *mc,int start_y) {
 
   int uch;
   int ok = 1;
@@ -1053,7 +1106,7 @@ int answer_multiple_choice(multiple_choice *mc,int start_y) {
 //@sa      : a pointer to the question 
 //@start_y : the starting row to draw the question 
 //@return  :the row immediatly after the end of this question
-int answer_select_all(select_all *sa,int start_y) {
+void answer_select_all(select_all *sa,int start_y) {
   int uch;
   int ok = 1;
   int *selected = sa->selected;
@@ -1091,7 +1144,7 @@ int answer_select_all(select_all *sa,int start_y) {
 //@sc      : a pointer to the question 
 //@start_y : the starting row to draw the question 
 //@return  :the row immediatly after the end of this question
-int answer_scale_choice(scale_choice *sc,int start_y) {
+void answer_scale_choice(scale_choice *sc,int start_y) {
 
   int uch;
   int ok = 1;
@@ -1102,9 +1155,11 @@ int answer_scale_choice(scale_choice *sc,int start_y) {
   while (ok) { 
     uch = getch();
     switch(uch) {
+      case 'k'://fall through
       case KEY_UP : 
         sc->selected = (sc->selected +sc->step < sc->max) ? (sc->selected+ sc->step) : sc->max;
         break;
+      case 'j'://fall through
       case KEY_DOWN : 
         sc->selected = (sc->selected - sc->step > sc->min) ? (sc->selected - sc->step) : sc->min;
         break;
@@ -1120,99 +1175,6 @@ int answer_scale_choice(scale_choice *sc,int start_y) {
   updatePad();
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//need to ban all control/special characters , but
-//have a special process for backspace and clear
-//WARNING! not checking for buffer overflow
-/*
-void editField(struct survey_pad *spad,int pad_segment,int selectIndex,char answer[]) {
-  //int charCount = 0;
-  int end = 0;
-  int charPos = 0;
-  int ok = 1;
-  while ( charPos < MAX_QCHARS && !end) {
-    if (answer[charPos] == '\0') {
-      end = 1;
-    } else {
-      charPos++;  
-    }
-  }
-
-  int last = wattron(spad->pad,COLOR_PAIR(1));
-  while (ok) {
-    mvprintw(20,0,"char pos is %d",charPos); //debug output
-    refresh();
-    int ic = getch();
-    switch(ic) { 
-      case 10 :
-        ok = 0;
-        break;
-      case KEY_BACKSPACE :;
-        attron(COLOR_PAIR(2));
-        addch('X');
-        attron(COLOR_PAIR(1));
-        int y,x; 
-        getyx(stdscr,y,x);
-        move(y,x-2);
-        delch();
-        move(y,x-2);
-        answer[charPos] = '\0';
-        charPos--;
-        break;
-      default :
-        if (charPos < MAX_ACHARS-1) {
-          //do not write control characters
-          if (! ( ic <= 31 || ic == 127 ) )
-            mvwaddch(spad->pad,QSPACE*(selectIndex),MAX_QCHARS+charPos,ic);
-            answer[charPos] = ic;
-            answer[charPos+1] = '\0';
-            charPos++; 
-  
-            prefresh(spad->pad,
-              pad_segment*spad->vqs*QSPACE,spad->padc_off,
-              spad->padr_off,spad->padc_off,
-              spad->pad_view_height-2 + spad->padr_off,spad->pad_view_width);
-        }
-    }
-  }
-  wattron(spad->pad,COLOR_PAIR(last));
-}
-*/
-
-/*
-void clearField(struct survey_pad *spad,int selectIndex,char answer[]) {
-  //clear internal buffer 
-  answer[0] = '\0';
-  //fill answer field with blank character
-  //mvprintw(spad->pad,spad->padr_off+(selectIndex*QSPACE),padc_off+MAX_QCHARS,"");
-  int last = wattron(spad->pad,COLOR_PAIR(2));
-  for ( int i = 0; i < MAX_QCHARS; i++) {
-    mvwaddch(spad->pad,(selectIndex*QSPACE),spad->padc_off+MAX_QCHARS+i,' ');
-  }
-  wattron(spad->pad,COLOR_PAIR(last));
-}
-*/
 
 
 void forceQuit(void) {
@@ -1243,47 +1205,3 @@ void updatePad(void) {
   prefresh(pad,(question_y[current_question_index]),pad_col_offset,pad_row_offset,pad_col_offset,pad_view_height-2+pad_row_offset,pad_view_width);
 }
 
-
-
-/*
-void moveIndex(int i,int *selectIndex,int *pad_segment,struct survey_pad* spad) {
-
-  if (i<0) {
-    if ( *selectIndex != 0 ) {
-
-      int before = wattron(spad->pad,COLOR_PAIR(1));
-      //delete old cursor 
-      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,' '); 
-
-      //update index
-      (*selectIndex)--;
-      //add new cursor
-      mvwaddch(spad->pad,QSPACE*(*selectIndex),0,'>'); 
-      wattron(spad->pad,COLOR_PAIR(before));
-
-      //move pad if stepping over vqs boundary (visible questions)
-      if (((*selectIndex)+1) % spad->vqs == 0) {
-        (*pad_segment)--;
-      }
-
-    }
- } else {
-    if ( *selectIndex != spad->nq-1 ) {
-
-      int before = wattron(spad->pad,COLOR_PAIR(1));
-      //delete old cursor 
-      mvwaddch(spad->pad->pad,QSPACE*(*selectIndex),0,'>'); 
-      wattron(spad->pad,COLOR_PAIR(before));
-
-      if ((*selectIndex) % spad->vqs == 0) {
-        (*pad_segment)++;
-      }
-    }
- }
-
-  prefresh(spad->pad,
-    *pad_segment*spad->vqs*QSPACE,spad->padc_off,
-    spad->padr_off,spad->padc_off,
-    spad->pad_view_height-2 + spad->padr_off,spad->pad_view_width);
-}
-*/

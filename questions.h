@@ -4,6 +4,8 @@
 typedef struct {
   char *prompt;
   char *response;
+  int response_buffer_size; 
+  int char_index; //what location next character will be written to in the response buffer
 } free_response;
 
 //seems like a waste of space for

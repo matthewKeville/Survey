@@ -43,9 +43,57 @@
     </multipleChoice>
   </question>
 
+  <question id="q4">
+    <prompt>How many hours of sleep did you get last night?</prompt>
+    <questionType>SC</questionType>
+      <scaleChoice>
+        <min>0</min>
+        <max>12</max>
+        <step>1</step>
+        <start>6</start>
+      </scaleChoice>
+  </question>
+
+  <question id="q5">
+    <prompt>What are you going to do later tonight?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse maxLength="200"/>
+  </question>
 
 
+  <question id="q6">
+    <prompt>How many cups of coffee did you have today?</prompt>
+    <questionType>SC</questionType>
+      <scaleChoice>
+        <min>0</min>
+        <max>10</max>
+        <step>1</step>
+        <start>0</start>
+      </scaleChoice>
+  </question>
 
+
+  <question id="q7">
+    <prompt>On a scale of 1-10 how happy are you right now?</prompt>
+    <questionType>SC</questionType>
+      <scaleChoice>
+        <min>0</min>
+        <max>10</max>
+        <step>1</step>
+        <start>0</start>
+      </scaleChoice>
+  </question>
+
+  <question id="q8">
+    <prompt>On a scale of 1-10 how sore are you?</prompt>
+    <questionType>SC</questionType>
+      <scaleChoice>
+        <min>0</min>
+        <max>10</max>
+        <step>1</step>
+        <start>0</start>
+      </scaleChoice>
+  </question>
 
 
 </survey>
