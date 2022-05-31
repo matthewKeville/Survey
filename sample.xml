@@ -95,5 +95,44 @@
       </scaleChoice>
   </question>
 
+  <question id="q9">
+    <prompt>Did you workout yesterday?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>Yes</option>
+      <option>No</option>
+    </multipleChoice>
+  </question>
+
+  <question id="q10">
+    <prompt>Did you cook yesterday?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>Yes</option>
+      <option>No</option>
+    </multipleChoice>
+  </question>
+
+  <question id="q10">
+    <prompt>Did you meditate yesterday?</prompt>
+    <questionType>MC</questionType>
+    <multipleChoice>
+      <option>Yes</option>
+      <option>No</option>
+    </multipleChoice>
+  </question>
+
+  <question id="q11">
+    <prompt>What are you grateful for right now?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse maxLength="100"/>
+  </question>
+
+  <question id="q12">
+    <prompt>What made you happy today?</prompt>
+    <questionType>FR</questionType>
+    <freeResponse maxLength="100"/>
+  </question>
+
 
 </survey>

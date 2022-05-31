@@ -209,7 +209,7 @@ int main(int argc,char *argv[])
       strcpy(mc_question->prompt,prompt);
       mc_question->options=optionSet; 
       mc_question->num_options=options_size;
-      mc_question->selected=0;
+      mc_question->selected=-1;
       mc_question->hovered=0;
       mc_question->edit=0;
       mcs[(*mcc)]=mc_question;
@@ -568,6 +568,7 @@ int main(int argc,char *argv[])
     init_pair(2,COLOR_BLUE,COLOR_BLUE);     //answer field (blocked)
     init_pair(3,COLOR_YELLOW,COLOR_BLACK);  //hovered option
     init_pair(4,COLOR_CYAN,COLOR_BLACK);   //select option
+    init_pair(5,COLOR_RED,COLOR_BLUE);   //select option
     attron(COLOR_PAIR(1));
 
     /////////////////////////
@@ -581,7 +582,7 @@ int main(int argc,char *argv[])
     char submit_key_string[] = "F1";  //Survey submission key
  
     //Write Survey Banner
-    mvprintw(0,0,"Daily Survey");
+    mvprintw(0,0,"Daily Survey"); //replace with survey name (from xml)
     //Submission info
     mvprintw(1,0,"PRESS %s , to submit | PRESS ENTER answer, PRESS TAB to cycle  ",submit_key_string);
     refresh(); 
@@ -625,7 +626,7 @@ int main(int argc,char *argv[])
         case SC :;
           question_y[i]=prev_question_end; 
           scale_choice* sc = scale_choices[qh->tindex];
-          prev_question_end += draw_scale_choice(sc,prev_question_end);
+          prev_question_end = draw_scale_choice(sc,prev_question_end);
           break;
         default :
           //prev_question_end += 3;
@@ -676,22 +677,30 @@ int main(int argc,char *argv[])
           question_header *qh = question_headers[current_question_index];
           int qy = question_y[current_question_index];
           if(qh->type == MC) {
-            debugPrint("answer multiple choice");
+            char msg[20];
+            sprintf(msg,"multiple @%d\n",qy);
+            debugPrint(msg);
             multiple_choice *mc = multiple_choices[qh->tindex];
             answer_multiple_choice(mc,qy);
           }
           if(qh->type == SC) {
-            debugPrint("answer scale choice");
+            char msg[20];
+            sprintf(msg,"scale @%d\n",qy);
+            debugPrint(msg);
             scale_choice *sc = scale_choices[qh->tindex];
             answer_scale_choice(sc,qy);
           }
           if(qh->type == SA) {
-            debugPrint("answer select all");
+            char msg[20];
+            sprintf(msg,"select @%d\n",qy);
+            debugPrint(msg);
             select_all *sa = select_alls[qh->tindex];
             answer_select_all(sa,qy);
           }
           if(qh->type == FR) {
-            debugPrint("answer free response");
+            char msg[20];
+            sprintf(msg,"free @%d\n",qy);
+            debugPrint(msg);
             free_response *fr = free_responses[qh->tindex];
             answer_free_response(fr,qy);
           }
@@ -729,17 +738,36 @@ int main(int argc,char *argv[])
     }
 
     //validate that all questions have been answered
-    /*
     int complete = 1;
     for ( int i = 0; i < total_question_count; i++ ) {
-      complete &= ( answers[i][0] != '\0');
+      question_header *qh = question_headers[i];
+      int qy = question_y[current_question_index];
+      if(qh->type == MC) {
+        multiple_choice *mc = multiple_choices[qh->tindex];
+        //selected in range of num_options
+        complete &= (mc->selected >=0 && mc->selected < mc->num_options);
+      }
+      if(qh->type == SC) {
+        scale_choice *sc = scale_choices[qh->tindex];
+        //no check
+      }
+      if(qh->type == SA) {
+        select_all *sa = select_alls[qh->tindex];
+        //no check (no response is valid)
+      }
+      if(qh->type == FR) {
+        free_response *fr = free_responses[qh->tindex];
+        //char index !=0
+        complete &= (fr->char_index > 0);
+      }
     }
 
     if (!complete) {
       ok = 1;
       goto USERREAD; 
     }
-    */
+
+
 
     //get elapsed time
     struct timeval t2;
@@ -753,15 +781,41 @@ int main(int argc,char *argv[])
     endwin();
 
     fflush(stdout);
+
+    //reload the dom into memory, make a copy
+    //and attach <answer></answer> fields to each question
+    //containg the respective responses for each
+    //save in a new file
+
+
+    xmlDocPtr answeredDoc;
+    answeredDoc = xmlParseFile(survey_file_path);
+    //xmlDocDump(File *f,doc);
+
     
     //save answers to file 
-    /*
     char *home = getenv("HOME");
     if (home == NULL) {
       printf("unable to find user home");
       exit(9);
     }
-    */
+
+    char *fileName = "/save.xml";
+    int pathLength = strlen(home) + strlen(fileName)-1;
+    char path[pathLength];
+
+    strncpy(path,home,strlen(home));
+    strncat(path,fileName,strlen(fileName));
+
+    printf("opening %s for writing\n",path);
+    FILE *fprt; //should be checking if this is a valid pointer
+    if ((fprt = fopen(path,"w"))) {
+      xmlDocDump(fprt,answeredDoc);
+    } else {
+      printf("Unable to save survey");
+      exit(10);
+    }
+    fclose(fprt); 
 
     /*
     char *fileName = "/save.xml";
@@ -1121,11 +1175,6 @@ void answer_select_all(select_all *sa,int start_y) {
         break;
       case ' ' : //spacebar (not ideal) : select option
         sa->selected[sa->hovered] = !(sa->selected[sa->hovered]);
-        if (sa->selected[sa->hovered]) {
-          debugPrint("true");
-        } else {
-          debugPrint("false");
-        }
         break;
       case 10 : //enter 
         ok = false;
@@ -1192,13 +1241,15 @@ void moveIndex(int i) {
   if (new_index >= 0 && new_index < total_question_count) {
     current_question_index = new_index; 
   }
-  char msg[10];
+  char msg[20];
   sprintf(msg,"selected %d",current_question_index);
   debugPrint(msg);
 }
 
 void debugPrint(char *msg) {
+  attron(COLOR_PAIR(5));
   mvprintw(pad_row_offset+pad_view_height+1,0,msg);//just after pad ends
+  attron(COLOR_PAIR(1));
 }
 
 void updatePad(void) {

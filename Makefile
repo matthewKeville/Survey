@@ -3,7 +3,7 @@ goal:
 	echo "Bulding... main"
 #run the application against sample input
 test:
-	./main -s sample.xml
+	./main -s small-sample.xml
 #check that the sample xml is valid
 validate:
 	xmllint --schema schema.xsd sample.xml --noout
