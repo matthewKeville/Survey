@@ -1,5 +1,4 @@
 #include "questions.h"
-
 #include<stdlib.h>
 #include<string.h>
 #include<time.h>
@@ -11,6 +10,7 @@
 #include<libxml/xpath.h>
 #include<libxml/xpathInternals.h>
 #include<libxml/xmlstring.h>
+#include<libxml/xmlwriter.h>
 
 #define BORDER          5    //vertical units of header and footer
 #define OPTION_PAD      2    //Space between multiple choice / select all options
@@ -278,6 +278,7 @@ int main(int argc,char *argv[])
       q_header->type=SA;
       q_header->index=(*qc);
       q_header->tindex=(*sac);
+      strcpy(q_header->question_id,(char *)id);
 
       qhs[(*qc)]=q_header;
       (*qc)++;
@@ -347,6 +348,7 @@ int main(int argc,char *argv[])
       q_header->type=SC;
       q_header->index=(*qc);
       q_header->tindex=(*scc);
+      strcpy(q_header->question_id,(char *)id);
 
       qhs[(*qc)]=q_header;
       (*qc)++;
@@ -782,18 +784,11 @@ int main(int argc,char *argv[])
 
     fflush(stdout);
 
-    //reload the dom into memory, make a copy
-    //and attach <answer></answer> fields to each question
-    //containg the respective responses for each
-    //save in a new file
+
+   
+    //create ComletedSurvey xml
 
 
-    xmlDocPtr answeredDoc;
-    answeredDoc = xmlParseFile(survey_file_path);
-    //xmlDocDump(File *f,doc);
-
-    
-    //save answers to file 
     char *home = getenv("HOME");
     if (home == NULL) {
       printf("unable to find user home");
@@ -807,36 +802,71 @@ int main(int argc,char *argv[])
     strncpy(path,home,strlen(home));
     strncat(path,fileName,strlen(fileName));
 
-    printf("opening %s for writing\n",path);
-    FILE *fprt; //should be checking if this is a valid pointer
-    if ((fprt = fopen(path,"w"))) {
-      xmlDocDump(fprt,answeredDoc);
-    } else {
-      printf("Unable to save survey");
-      exit(10);
+    //setup xml writer
+    xmlTextWriterPtr writer;
+    xmlChar *tmp;
+    xmlDocPtr final_doc;
+    writer = xmlNewTextWriterDoc(&final_doc,0);
+    //write all elements
+    xmlTextWriterStartDocument(writer,NULL,"ISO-8859-1",NULL);   
+    xmlTextWriterStartElement(writer, BAD_CAST "CompletedSurvey");
+    xmlTextWriterStartElement(writer, BAD_CAST "MetaData");
+    //xmlTextWriterWriteFormatElement(writer, BAD_CAST "DateTime" , "%ld" , ;
+    xmlTextWriterStartElement(writer, BAD_CAST "DateTime");
+    xmlTextWriterWriteFormatElement(writer, BAD_CAST "Month" , "%d" , start_time->tm_mon+1);
+    xmlTextWriterWriteFormatElement(writer, BAD_CAST "Day" , "%d" , start_time->tm_mday);
+    xmlTextWriterWriteFormatElement(writer, BAD_CAST "Hour" , "%d" , start_time->tm_hour);
+    xmlTextWriterWriteFormatElement(writer, BAD_CAST "Min" , "%d" , start_time->tm_min);
+    xmlTextWriterEndElement(writer);
+    xmlTextWriterWriteFormatElement(writer, BAD_CAST "ElapsedTime" , "%ld" ,(t2.tv_sec) - (t1.tv_sec));
+    xmlTextWriterEndElement(writer);
+
+
+    //printf("Started at : %d-%02d-%02d %02d:%02d:%02d\n", start_time->tm_year + 1900,
+    //start_time->tm_mon + 1, start_time->tm_mday, start_time->tm_hour, start_time->tm_min, start_time->tm_sec);
+    //printf("elapsed time is %ld \n",(t2.tv_sec)-(t1.tv_sec));
+
+    //write out each answer
+    for ( int i = 0; i < total_question_count; i++ ) {
+      question_header *qh  = question_headers[i];
+      xmlTextWriterStartElement(writer, BAD_CAST "Question");
+      xmlTextWriterWriteAttribute(writer, BAD_CAST "id", BAD_CAST qh->question_id);
+      switch (qh->type) {
+        case FR :;
+          question_y[i]=prev_question_end; 
+          free_response* fr = free_responses[qh->tindex];
+          xmlTextWriterWriteFormatElement(writer, BAD_CAST "Answer" , "%s" ,fr->response);
+          break;
+        case MC :;
+          question_y[i]=prev_question_end; 
+          multiple_choice* mc = multiple_choices[qh->tindex];
+          xmlTextWriterWriteFormatElement(writer, BAD_CAST "Answer" , "%s" ,(mc->options)[mc->selected]);
+          break;
+        case SA :;
+          question_y[i]=prev_question_end; 
+          select_all* sa = select_alls[qh->tindex];
+          for ( int k = 0; k < sa->num_options; k++ ) {
+            if ( (sa->selected)[k]) {
+              xmlTextWriterWriteFormatElement(writer, BAD_CAST "Answer" , "%s" , (sa->options)[k] );
+            }
+          }
+          break;
+        case SC :;
+          question_y[i]=prev_question_end; 
+          scale_choice* sc = scale_choices[qh->tindex];
+          xmlTextWriterWriteFormatElement(writer, BAD_CAST "Answer" , "%d" , sc->selected);
+          break;
+        default :;
+      }
+      xmlTextWriterEndElement(writer);
     }
-    fclose(fprt); 
 
-    /*
-    char *fileName = "/save.xml";
-    int pathLength = strlen(home) + strlen(fileName)-1;
-    char path[pathLength];
 
-    strncpy(path,home,strlen(home));
-    strncat(path,fileName,strlen(fileName));
-
-    printf("opening %s for writing\n",path);
-    FILE *fprt; //should be checking if this is a valid pointer
-    if ((fprt = fopen(path,"w"))) {
-      for ( int i = 0; i < total_question_count; i++) {
-        fprintf(fprt,"%s\n",answers[i]);
-      } 
-    } else {
-      printf("Unable to save survey");
-      exit(10);
-    }
-    fclose(fprt); 
-    */
+    xmlTextWriterEndDocument(writer);
+    //clean up and save
+    xmlFreeTextWriter(writer);
+    xmlSaveFileEnc(path,final_doc,"ISO-8859-1");
+    xmlFreeDoc(final_doc);
 
 
     return EXIT_SUCCESS;
